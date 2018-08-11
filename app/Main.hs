@@ -4,19 +4,12 @@ module Main where
 import Control.Monad.Trans
 import Options.Declarative
 import Parse
--- import EtaLong
 import Control.Monad
 import Alpha
 import KNormal
 import NestedLet
 import Closure
--- import Closure
--- import Flat
--- import Declare
--- import Call
--- import Register
--- import Stack
--- import Data.Either
+import WasmGen
 
 -- genCode :: [[Instruction]] -> String
 -- genCode is = "\t.data\nNL:\n\t.asciiz \"\\n\"\n\t.text\n\t.globl main\n" ++ (concat (map (concat.(map show)) is))
@@ -38,48 +31,30 @@ import Closure
 
 showDetails :: String -> IO ()
 showDetails input = do
-  putStr $ "Input = \n" ++ input ++ "\n"
+  putStr $ "Input = \n" ++ input
 
   let parsed = stringToExp input
-  putStr $ "After parsing = \n" ++ f parsed ++ "\n\n"
+  putStr $ "After parse = \n" ++ f parsed ++ "\n\n"
 
   let knormaled = (liftM exprToKNormalExpr) parsed
-  putStrLn $ "After KNormalization = \n" ++ f knormaled ++ "\n"
+  putStrLn $ "After K-normalization = \n" ++ f knormaled ++ "\n"
 
   let alphad = exprToAlphaExpr `liftM` knormaled
   putStrLn $ "After alpha conversion = \n" ++ f alphad ++ "\n"
 
   let nonNest = expToNonNest `liftM` alphad
-  putStrLn $ "After no-nest conversion = \n" ++ f nonNest ++ "\n"
+  putStrLn $ "After no-nested-let conversion = \n" ++ f nonNest ++ "\n"
 
   let closured = clsTrans `liftM` nonNest
   putStrLn $ "After closure translation = \n" ++ f closured ++ "\n"
+
+  let wasm = genWasm `liftM` closured
+  putStrLn $ "Generated wasm code = \n" ++ f wasm ++ "\n"
 
   -- let flatted = exprToFlatExpr `liftM` alphad
   -- putStrLn $ "After flatting = \n" ++ show flatted ++ "\n"
   --
     where f a = either show show a
- 
-
-  -- let etad = exprToEtaLongExpr `liftM` parsed
-  -- putStrLn $ "After eta expansion = \n" ++ show etad ++ "\n"
-  --
-  -- putStr $ "etamap = \n" ++ (show $ exprToEtaLongMap `liftM` parsed)
-  --
- -- let closured = exprToClosureExpr `liftM` alphad
-  -- putStrLn $ "After closure translation = \n" ++ show closured ++ "\n"
-  --
- -- let ists = exprToDeclareList `liftM` flatted
-  -- putStrLn $ "Declares = \n" ++ show ists
-  --
-  -- let called = (liftM (liftM (liftM processCall))) ists
-  -- putStrLn $ "After call normalization = \n" ++ show called
-  --
-  -- let alloced = (liftM (liftM (liftM allocate))) called
-  -- putStrLn $ "After register allocation = \n" ++ show alloced
-  --
-  -- let stacked = (liftM $ liftM $ liftM processStack) alloced
-  -- putStrLn $ "After stack allocation = \n" ++ show stacked
 
 compile :: Flag "d" '["debug"] "" "debug option" Bool
         -> Arg "Sorce file" String
