@@ -1,0 +1,12 @@
+(module
+  (memory 10)
+  (func (export "main") (result i32)
+     (i32.const 0)
+     (i32.const 42)
+     (i32.store)
+     (i32.const 4)
+     (i32.const 21)
+     (i32.store)
+     (i32.const 4)
+     (i32.load)
+     ))
