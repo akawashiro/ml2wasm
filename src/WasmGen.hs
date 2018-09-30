@@ -14,19 +14,26 @@ data Inst = I32Const Integer |
             I32Add |
             I32Sub |
             I32Mul |
+            I32Less |
             I32Load |
-            I32Store
+            I32Store | 
+            IfThenElse [Inst] [Inst] [Inst]
             deriving (Eq)
 instance Show Inst where
-  show (I32Const i) = "(i32.const\n" ++ show i ++ ")"
+  show (I32Const i) = "(i32.const " ++ show i ++ ")"
   show (Local v)    = "(local " ++ v ++ " i32)"
   show (SetLocal v) = "(set_local " ++ v ++ ")"
   show (GetLocal v) = "(get_local " ++ v ++ ")"
   show I32Add = "(i32.add)"
   show I32Sub = "(i32.sub)"
   show I32Mul = "(i32.mul)"
+  show I32Less = "(i32.lt_s)"
   show I32Load = "(i32.load)"
   show I32Store = "(i32.store)"
+  show (IfThenElse is1 is2 is3) = "(if (result i32)\n" ++ s1 ++ "(then\n" ++ s2 ++ ")\n" ++ "(else\n" ++ s3 ++ "))"
+    where s1 = intercalate "\n" (map show is1)
+          s2 = intercalate "\n" (map show is2)
+          s3 = intercalate "\n" (map show is3)
 
 newtype Wasm = Wasm [Inst]
 instance Show Wasm where
@@ -42,6 +49,11 @@ genWasm (C.Prog fds e) =
 
 -- The state of this State Monad is definition of local variables.
 exp2Wasm :: C.Exp -> State [Inst] [Inst]
+exp2Wasm (C.EIf e1 e2 e3) = do
+  is1 <- exp2Wasm e1
+  is2 <- exp2Wasm e2
+  is3 <- exp2Wasm e3
+  return $ [IfThenElse is1 is2 is3]
 exp2Wasm (C.EInt i) = return [I32Const i]
 exp2Wasm (C.EVar (C.Var v)) = return [GetLocal ("$"++v)]
 exp2Wasm (C.EOp o e1 e2) = do
@@ -51,6 +63,7 @@ exp2Wasm (C.EOp o e1 e2) = do
     where op K.OPlus = I32Add
           op K.OMinus = I32Sub
           op K.OTimes = I32Mul
+          op K.OLess = I32Less
 exp2Wasm (C.ELet (C.Var v) e1 e2) = do
   d <- get
   put (Local ("$"++v):d)
