@@ -1,1 +1,1 @@
-let (x,y,z) = (10, 20, (1,true)) in x;;
+let (x,y) = (10,20) in y;;
