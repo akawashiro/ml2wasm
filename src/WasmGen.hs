@@ -4,10 +4,11 @@ module WasmGen where
 
 import qualified Closure as C
 import qualified KNormal as K
+import Data.Maybe
 import Data.List
 import Control.Monad.State
 
-data Inst = I32Const Integer | 
+data Inst = I32Const Int | 
             Local String | 
             SetLocal String | 
             GetLocal String | 
@@ -17,7 +18,10 @@ data Inst = I32Const Integer |
             I32Less |
             I32Load |
             I32Store | 
-            IfThenElse [Inst] [Inst] [Inst]
+            IfThenElse [Inst] [Inst] [Inst] |
+            CallIndirect Int |
+            Table Int |
+            Func String [String] [Inst]
             deriving (Eq)
 instance Show Inst where
   show (I32Const i) = "(i32.const " ++ show i ++ ")"
@@ -34,21 +38,45 @@ instance Show Inst where
     where s1 = intercalate "\n" (map show is1)
           s2 = intercalate "\n" (map show is2)
           s3 = intercalate "\n" (map show is3)
+  show (CallIndirect n) = "(call_indirect " ++ concat (replicate n "(param i32) ") ++ "(result i32))"
+  show (Table n) = "(table " ++ show n ++ " anyfunc)"
+  show (Func fn args is) = "(func " ++ show fn ++ " " ++ sargs ++ " (result i32)\n" ++ intercalate "\n" (map show is) ++ ")"
+    where sargs = concat (map (\x -> "(param " ++ x ++ " i32)") args)
 
-newtype Wasm = Wasm [Inst]
+-- Wasm FunDefs Main
+newtype Wasm = Wasm [Inst] [Inst]
 instance Show Wasm where
-  show (Wasm is) = "(module\n(memory 10)\n(func (export \"main\") (result i32)\n" ++ intercalate "\n" (map show is) ++ "))"
+  show (Wasm is) = "(module\n(memory 11)\n(func (export \"main\") (result i32)\n" ++ intercalate "\n" (map show is) ++ "))"
 
 
 stackTopVar = "$stack_top_var"
 
-genWasm :: C.Prog -> Wasm
-genWasm (C.Prog fds e) = 
-  let (b,l) = runState (exp2Wasm e) [(Local stackTopVar)] in
-  Wasm (l ++ b)
+prog2Wasm :: C.Prog -> Wasm
+prog2Wasm (C.Prog fds e) = 
+  let (b,l) = runState (exp2Wasm e) (GenMState {localVariables = [(Local stackTopVar)], label2index = f}) in
+  Wasm (localVariables l ++ b)
+    where f x = fromJust . lookup x $ zip (map (\(C.FunDef x _ _) -> x) fds) [1..]
 
--- The state of this State Monad is definition of local variables.
-exp2Wasm :: C.Exp -> State [Inst] [Inst]
+fundef2Wasm :: C.FunDef -> GenM Inst
+fundef2Wasm (C.FunDef (C.Label fname) args exp) = do
+  is <- exp2Wasm exp
+  return (Func fname (map l2s args) is)
+    where l2s (C.Var v) = v
+
+data GenMState = GenMState { localVariables :: [Inst], label2index :: C.Var -> Int }
+type GenM a = (State GenMState a)
+
+putLocal :: String -> GenM ()
+putLocal s = do
+  d <- get
+  put d {localVariables = (Local ("$"++s):localVariables d)}
+
+getLabelIndex :: C.Var -> GenM Int
+getLabelIndex l = do
+  d <- get
+  return (label2index d l)
+
+exp2Wasm :: C.Exp -> GenM [Inst]
 exp2Wasm (C.EIf e1 e2 e3) = do
   is1 <- exp2Wasm e1
   is2 <- exp2Wasm e2
@@ -56,6 +84,9 @@ exp2Wasm (C.EIf e1 e2 e3) = do
   return $ [IfThenElse is1 is2 is3]
 exp2Wasm (C.EInt i) = return [I32Const i]
 exp2Wasm (C.EVar (C.Var v)) = return [GetLocal ("$"++v)]
+exp2Wasm (C.EVar (C.Label l)) = do
+  i <- getLabelIndex (C.Label l)
+  return [I32Const i]
 exp2Wasm (C.EOp o e1 e2) = do
   is1 <- exp2Wasm e1
   is2 <- exp2Wasm e2
@@ -65,8 +96,7 @@ exp2Wasm (C.EOp o e1 e2) = do
           op K.OTimes = I32Mul
           op K.OLess = I32Less
 exp2Wasm (C.ELet (C.Var v) e1 e2) = do
-  d <- get
-  put (Local ("$"++v):d)
+  putLocal v
   is1 <- exp2Wasm e1
   is2 <- exp2Wasm e2
   return $ is1 ++ [SetLocal ("$"++v)] ++ is2
@@ -82,8 +112,11 @@ exp2Wasm (C.EDTuple vs e1 e2) = do
   is2 <- exp2Wasm e2
   return $ is1 ++ [SetLocal stackTopVar] ++ set ++ is2
     where
-      f :: (C.Var, Integer) -> State [Inst] [Inst]
+      f :: (C.Var, Int) -> GenM [Inst]
       f ((C.Var v), offset) = do
-        d <- get
-        put (Local ("$"++v):d)
+        putLocal v
         return $ [GetLocal stackTopVar, I32Const offset, I32Add, I32Load, SetLocal ("$"++v)]
+exp2Wasm (C.EAppCls e1 args) = do
+  isargs <- concat <$> mapM exp2Wasm (reverse args)
+  is1 <- exp2Wasm e1
+  return $ isargs ++ is1 ++ [SetLocal stackTopVar, GetLocal stackTopVar, GetLocal stackTopVar, I32Load, (CallIndirect (1 + length args))]

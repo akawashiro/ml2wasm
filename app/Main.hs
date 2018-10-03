@@ -18,7 +18,7 @@ printWasmCode input = do
   let alphad = exprToAlphaExpr `liftM` knormaled
   let nonNest = expToNonNest `liftM` alphad
   let closured = clsTrans `liftM` nonNest
-  let wasm = genWasm `liftM` closured
+  let wasm = prog2Wasm `liftM` closured
   putStrLn (f wasm)
     where f a = either show show a
 
@@ -36,7 +36,7 @@ showDetails input = do
   putStrLn $ "After no-nested-let conversion = \n" ++ f nonNest ++ "\n"
   let closured = clsTrans `liftM` nonNest
   putStrLn $ "After closure translation = \n" ++ f closured ++ "\n"
-  let wasm = genWasm `liftM` closured
+  let wasm = prog2Wasm `liftM` closured
   putStrLn $ "Generated wasm code = \n" ++ f wasm ++ "\n"
     where f a = either show show a
 

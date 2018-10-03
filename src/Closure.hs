@@ -11,7 +11,7 @@ instance Show Var where
   show (Var s) = s
   show (Label s) = s
 
-data Exp = EInt Integer | 
+data Exp = EInt Int | 
            EOp K.Op Exp Exp |
            EIf Exp Exp Exp |
            ELet Var Exp Exp |

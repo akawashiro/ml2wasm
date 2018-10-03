@@ -27,7 +27,7 @@ instance Show Op where
   show OMinus = "-"
   show OTimes = "*"
 
-data Exp = EInt Integer | 
+data Exp = EInt Int | 
            EBool Bool |
            EOp Op Exp Exp |
            EIf Exp Exp Exp |
@@ -143,7 +143,7 @@ parseBool :: Parser Bool
 parseBool = (kwTrue >> return True) <|> (kwFalse >> return False)
 
 
-parseInt :: Parser Integer
+parseInt :: Parser Int
 parseInt = (do whiteSpace; char '-'; ds<-many1 digit; whiteSpace; return $ -1 * read ds)
            <|> (do whiteSpace; ds<-many1 digit; whiteSpace; return $ read ds)
 

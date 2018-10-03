@@ -16,7 +16,7 @@ instance Show Op where
   show OMinus = "-"
   show OTimes = "*"
 
-data Exp = EInt Integer | 
+data Exp = EInt Int | 
            EOp Op Exp Exp |
            EIf Exp Exp Exp |
            ELet Var Exp Exp |
