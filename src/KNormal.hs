@@ -75,10 +75,11 @@ exprToKNormalExpr' exp = case exp of
     return $ (ELet (Var s) e1' e2')
     -- return $ ELet s1 e1' (ELet (Var s) (EVar s1) e2')
   P.EDTuple vs e1 e2 -> do
-    s1 <- generateNewName
+    -- s1 <- generateNewName
     e1' <- exprToKNormalExpr' e1
     e2' <- exprToKNormalExpr' e2
-    return $ ELet s1 e1' (EDTuple (f vs) (EVar s1) e2')
+    return $ EDTuple (f vs) e1' e2'
+    -- return $ ELet s1 e1' (EDTuple (f vs) (EVar s1) e2')
       where f [] = []
             f (P.Var v:rest) = Var v:(f rest)
   P.EApp e1 e2s -> do
@@ -102,12 +103,14 @@ exprToKNormalExpr' exp = case exp of
       where f (P.Var s) = Var s
   P.EVar (P.Var s) -> return $ EVar (Var s)
   P.ETuple es -> do
-    as <- mapM f es
-    return (g as (ETuple (map (EVar . fst) as)))
-      where f e = do
-              e' <- exprToKNormalExpr' e
-              s <- generateNewName
-              return (s, e')
-            g [] k = k
-            g ((s,e):rest) k = (ELet s e (g rest k))
+    as <- mapM exprToKNormalExpr' es
+    return (ETuple as)
+    -- as <- mapM f es
+    -- return (g as (ETuple (map (EVar . fst) as)))
+    --   where f e = do
+    --           e' <- exprToKNormalExpr' e
+    --           s <- generateNewName
+    --           return (s, e')
+    --         g [] k = k
+    --         g ((s,e):rest) k = (ELet s e (g rest k))
 
