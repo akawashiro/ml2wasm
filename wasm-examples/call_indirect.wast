@@ -1,4 +1,5 @@
 (module
+  (memory 10)
   (table 2 anyfunc)
   (func $f1 (param $x i32) (result i32)
     get_local $x )

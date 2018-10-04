@@ -40,13 +40,21 @@ instance Show Inst where
           s3 = intercalate "\n" (map show is3)
   show (CallIndirect n) = "(call_indirect " ++ concat (replicate n "(param i32) ") ++ "(result i32))"
   show (Table n) = "(table " ++ show n ++ " anyfunc)"
-  show (Func fn args is) = "(func " ++ show fn ++ " " ++ sargs ++ " (result i32)\n" ++ intercalate "\n" (map show is) ++ ")"
-    where sargs = concat (map (\x -> "(param " ++ x ++ " i32)") args)
+  show (Func fn args is) = "(func $" ++ fn ++ " " ++ sargs ++ " (result i32)\n" ++ intercalate "\n" (map show is) ++ ")"
+    where sargs = concat (map (\x -> "(param $" ++ x ++ " i32)") args)
 
 -- Wasm FunDefs Main
-newtype Wasm = Wasm [Inst] [Inst]
+data Wasm = Wasm [Inst] [Inst]
 instance Show Wasm where
-  show (Wasm is) = "(module\n(memory 11)\n(func (export \"main\") (result i32)\n" ++ intercalate "\n" (map show is) ++ "))"
+  show (Wasm fds is) = 
+    let prefix = "(module\n(memory 10)\n" in
+    let table = "(table " ++ show (length fds) ++ " anyfunc)\n" in
+    let fundefs = intercalate "\n" (map show fds) ++ "\n" in 
+    let elem = "(elem (i32.const 0) " ++ intercalate " " (map (\(Func fn _ _) -> "$" ++ fn) fds) ++ ")\n" in
+    let mainPrefix = "(func (export \"main\") (result i32)\n" in
+    let main = intercalate "\n" (map show is) in 
+    let mainSuffix = "))" in
+    prefix ++ table ++ fundefs ++ elem ++ mainPrefix ++ main ++ mainSuffix
 
 
 stackTopVar = "$stack_top_var"
@@ -54,13 +62,14 @@ stackTopVar = "$stack_top_var"
 prog2Wasm :: C.Prog -> Wasm
 prog2Wasm (C.Prog fds e) = 
   let (b,l) = runState (exp2Wasm e) (GenMState {localVariables = [(Local stackTopVar)], label2index = f}) in
-  Wasm (localVariables l ++ b)
-    where f x = fromJust . lookup x $ zip (map (\(C.FunDef x _ _) -> x) fds) [1..]
+  let fdiss = map (fundef2Wasm f) fds in
+  Wasm fdiss (localVariables l ++ b)
+    where f x = fromJust . lookup x $ zip (map (\(C.FunDef x _ _) -> x) fds) [0..]
 
-fundef2Wasm :: C.FunDef -> GenM Inst
-fundef2Wasm (C.FunDef (C.Label fname) args exp) = do
-  is <- exp2Wasm exp
-  return (Func fname (map l2s args) is)
+fundef2Wasm :: (C.Var -> Int) -> C.FunDef -> Inst
+fundef2Wasm f (C.FunDef (C.Label fname) args exp) =
+  let (b,l) = runState (exp2Wasm exp) (GenMState {localVariables = [(Local stackTopVar)], label2index = f}) in
+  (Func fname (map l2s args) (localVariables l ++ b))
     where l2s (C.Var v) = v
 
 data GenMState = GenMState { localVariables :: [Inst], label2index :: C.Var -> Int }
@@ -117,6 +126,6 @@ exp2Wasm (C.EDTuple vs e1 e2) = do
         putLocal v
         return $ [GetLocal stackTopVar, I32Const offset, I32Add, I32Load, SetLocal ("$"++v)]
 exp2Wasm (C.EAppCls e1 args) = do
-  isargs <- concat <$> mapM exp2Wasm (reverse args)
+  isargs <- concat <$> mapM exp2Wasm args
   is1 <- exp2Wasm e1
   return $ isargs ++ is1 ++ [SetLocal stackTopVar, GetLocal stackTopVar, GetLocal stackTopVar, I32Load, (CallIndirect (1 + length args))]
