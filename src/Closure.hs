@@ -34,7 +34,7 @@ instance Show Exp where
 
 data FunDef = FunDef Var [Var] Exp deriving (Eq)
 instance Show FunDef where
-  show (FunDef x ys e) = "fundef " ++ show x ++ " " ++ intercalate " " (map show ys) ++ " =\n" ++ show e
+  show (FunDef x ys e) = "fundef " ++ show x ++ " " ++ unwords (map show ys) ++ " =\n" ++ show e
 
 data Prog = Prog [FunDef] Exp deriving (Eq)
 instance Show Prog where
@@ -83,16 +83,16 @@ v2l :: K.Var -> Var
 v2l (K.Var s) = Label ("def_" ++ s)
 
 adder :: K.Exp
-adder = (K.ERec (K.Var "make_adder") [(K.Var "x")]
-          (K.ERec (K.Var "adder") [(K.Var "y")] 
-            (K.EOp K.OPlus (K.EVar (K.Var "x")) (K.EVar (K.Var "y"))) (K.EApp (K.EVar (K.Var "adder")) [(K.EInt 3)]))
-          (K.EApp (K.EVar (K.Var "make_adder")) [(K.EInt 7)]))
+adder = K.ERec (K.Var "make_adder") [K.Var "x"]
+          (K.ERec (K.Var "adder") [K.Var "y"] 
+            (K.EOp K.OPlus (K.EVar (K.Var "x")) (K.EVar (K.Var "y"))) (K.EApp (K.EVar (K.Var "adder")) [K.EInt 3]))
+          (K.EApp (K.EVar (K.Var "make_adder")) [K.EInt 7])
 
 adder2 :: K.Exp
-adder2 = (K.ERec 
-          (K.Var "make_adder") [(K.Var "x"), (K.Var "y")] 
+adder2 = K.ERec 
+          (K.Var "make_adder") [K.Var "x", K.Var "y"] 
           (K.EOp K.OPlus (K.EVar (K.Var "x")) (K.EVar (K.Var "y"))) 
-          (K.EApp (K.EVar (K.Var "make_adder")) [(K.EInt 7), (K.EInt 10)]))
+          (K.EApp (K.EVar (K.Var "make_adder")) [K.EInt 7, K.EInt 10])
 
 fv :: K.Exp -> [K.Var]
 fv (K.EInt _) = []
@@ -102,8 +102,8 @@ fv (K.ELet v e1 e2) = (fv e1 ++ fv e2) `lminus` [v]
 fv (K.EVar v) = [v]
 fv (K.ERec x ys e1 e2) = (fv e1 ++ fv e2) `lminus` (x:ys)
 fv (K.EDTuple xs e1 e2) = (fv e1 ++ fv e2) `lminus` xs
-fv (K.EApp e1 e2) = (fv e1 ++ concat (map fv e2))
-fv (K.ETuple e) = concat (map fv e)
+fv (K.EApp e1 e2) = fv e1 ++ concatMap fv e2
+fv (K.ETuple e) = concatMap fv e
 
 lminus :: Eq a => [a] -> [a] -> [a]
-lminus xs ys = filter (\x -> not (elem x ys)) xs
+lminus xs ys = filter (`notElem` ys) xs

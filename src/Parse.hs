@@ -14,7 +14,7 @@ import           Text.ParserCombinators.Parsec.Language
 import qualified Text.ParserCombinators.Parsec.Token    as P
 
 stringToExp :: String -> Either String Exp
-stringToExp input = either (\x->Left $show x) (\x->Right x) (parse parseExp "Parse.hs" input)
+stringToExp input = either (Left . show) Right (parse parseExp "Parse.hs" input)
 
 newtype Var = Var String
 instance Show Var where
@@ -43,11 +43,11 @@ instance Show Exp where
   show (EIf e1 e2 e3) = "if " ++ show e1 ++ "\nthen " ++ show e2 ++ "\nelse " ++ show e3
   show (EOp o e1 e2) = "(" ++ show o ++ " " ++ show e1 ++ " " ++ show e2 ++ ")"
   show (ELet v e1 e2) = "let " ++ show v ++ " = " ++ show e1 ++ " in\n" ++ show e2
-  show (EDTuple vs e1 e2) = "let (" ++ concat (intersperse ", " (map show vs)) ++ ") = " ++ show e1 ++ " in\n" ++ show e2
+  show (EDTuple vs e1 e2) = "let (" ++ intercalate ", " (map show vs) ++ ") = " ++ show e1 ++ " in\n" ++ show e2
   show (EVar v) = show v
   show (ERec x ys e1 e2) = "let rec " ++ show x ++ " " ++ show ys ++ " = " ++ show e1 ++ " in\n" ++ show e2
   show (EApp e1 e2s) = show e1 ++ " " ++ show e2s
-  show (ETuple es) = "(" ++ concat (intersperse ", " (map show es)) ++ ")"
+  show (ETuple es) = "(" ++ intercalate ", " (map show es) ++ ")"
 
 natDef :: P.GenLanguageDef String () Identity
 natDef = emptyDef { P.reservedNames = keywords, P.reservedOpNames = operators }
@@ -111,7 +111,7 @@ parseExpRec = do kwLet; kwRec; x<-parseVar; ys <- many1 parseVar; kwEqual; e1<-p
 parseExpLt :: Parser Exp
 parseExpLt =  do 
   e1<-parseExpP
-  (kwLessSymbol >> EOp OLess e1 <$> parseExpP) <|> (return e1)
+  (kwLessSymbol >> EOp OLess e1 <$> parseExpP) <|> return e1
 
 parseExpP :: Parser Exp
 parseExpP = C.chainl1 parseExpM (kwPlusSymbol >> return (EOp OPlus))
@@ -131,7 +131,7 @@ parseExpTuple :: Parser Exp
 parseExpTuple = do
   h <- parseExp
   t <- many (kwCommaSymbol >> parseExp)
-  if length t == 0 then return h else return (ETuple (h:t))
+  if null t then return h else return (ETuple (h:t))
 
 parseExpAtom :: Parser Exp
 parseExpAtom = parens parseExpTuple

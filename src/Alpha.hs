@@ -23,7 +23,7 @@ rename (Var s) = do
 
 isFun :: Exp -> Bool
 isFun exp = case exp of
-  ERec _ _ _ _ -> True
+  ERec {} -> True
   ELet _ _ e -> isFun e
   _ -> False
 
@@ -46,7 +46,7 @@ exprToAlphaExpr' exp = case exp of
     e2' <- exprToAlphaExpr' e2
     return $ ELet s' e1' e2'
   EDTuple vs e1 e2 -> do
-    mapM (addNewName "val_") vs
+    mapM_ (addNewName "val_") vs
     vs' <- mapM rename vs
     e1' <- exprToAlphaExpr' e1
     e2' <- exprToAlphaExpr' e2

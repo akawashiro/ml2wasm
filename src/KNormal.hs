@@ -31,11 +31,11 @@ instance Show Exp where
   show (EOp o e1 e2) = "(" ++ show o ++ " " ++ show e1 ++ " " ++ show e2 ++ ")"
   show (EIf e1 e2 e3) = "if " ++ show e1 ++ "\nthen " ++ show e2 ++ "\nelse " ++ show e3
   show (ELet v e1 e2) = "let " ++ show v ++ " = " ++ show e1 ++ " in\n" ++ show e2
-  show (EDTuple vs e1 e2) = "let (" ++ concat (intersperse ", " (map show vs)) ++ ") = " ++ show e1 ++ " in\n" ++ show e2
+  show (EDTuple vs e1 e2) = "let (" ++ intercalate ", " (map show vs) ++ ") = " ++ show e1 ++ " in\n" ++ show e2
   show (EVar v) = show v
   show (ERec x ys e1 e2) = "let rec " ++ show x ++ " " ++ show ys ++ " =\n" ++ show e1 ++ " in\n" ++ show e2
   show (EApp e1 e2s) = show e1 ++ " " ++ show e2s
-  show (ETuple es) = "(" ++ concat (intersperse ", " (map show es)) ++ ")"
+  show (ETuple es) = "(" ++ intercalate ", " (map show es) ++ ")"
 
 exprToKNormalExpr :: P.Exp -> Exp
 exprToKNormalExpr exp = evalState (exprToKNormalExpr' exp) 0
@@ -52,11 +52,12 @@ exprToKNormalExpr' exp = case exp of
   P.EBool True -> return $ EInt 1
   P.EBool False -> return $ EInt 0
   P.EOp o e1 e2 -> do
-    s1 <- generateNewName
-    s2 <- generateNewName
+    -- s1 <- generateNewName
+    -- s2 <- generateNewName
     e1' <- exprToKNormalExpr' e1
     e2' <- exprToKNormalExpr' e2
-    return $ ELet s1 e1' (ELet s2 e2' (EOp (f o) (EVar s1) (EVar s2)))
+    return $ EOp (f o) e1' e2'
+    -- return $ ELet s1 e1' (ELet s2 e2' (EOp (f o) (EVar s1) (EVar s2)))
       where f P.OLess = OLess
             f P.OPlus = OPlus
             f P.OMinus = OMinus
@@ -66,12 +67,13 @@ exprToKNormalExpr' exp = case exp of
     e1' <- exprToKNormalExpr' e1
     e2' <- exprToKNormalExpr' e2
     e3' <- exprToKNormalExpr' e3
-    return $ ELet s1 e1' (EIf (EVar s1) e2' e3')
+    return (ELet s1 e1' (EIf (EVar s1) e2' e3'))
   P.ELet (P.Var s) e1 e2 -> do
-    s1 <- generateNewName
+    -- s1 <- generateNewName
     e1' <- exprToKNormalExpr' e1
     e2' <- exprToKNormalExpr' e2
-    return $ ELet s1 e1' (ELet (Var s) (EVar s1) e2')
+    return $ (ELet (Var s) e1' e2')
+    -- return $ ELet s1 e1' (ELet (Var s) (EVar s1) e2')
   P.EDTuple vs e1 e2 -> do
     s1 <- generateNewName
     e1' <- exprToKNormalExpr' e1
@@ -80,11 +82,13 @@ exprToKNormalExpr' exp = case exp of
       where f [] = []
             f (P.Var v:rest) = Var v:(f rest)
   P.EApp e1 e2s -> do
-    s1 <- generateNewName
-    s2 <- generateNewName
+    -- s1 <- generateNewName
+    -- s2 <- generateNewName
     e1' <- exprToKNormalExpr' e1
-    as <- mapM f e2s
-    return (ELet s2 e1' (ELet s1 (g as (EApp (EVar s2) (map (EVar . fst) as))) (EVar s1)))
+    -- as <- mapM f e2s
+    as <- mapM exprToKNormalExpr' e2s
+    -- return (ELet s2 e1' (ELet s1 (g as (EApp (EVar s2) (map (EVar . fst) as))) (EVar s1)))
+    return (EApp e1' as)
       where f e = do
               e' <- exprToKNormalExpr' e
               s <- generateNewName
