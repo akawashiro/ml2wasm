@@ -9,6 +9,6 @@ do
     
     wat2wasm $f.wast
     echo "The result of execution ="
-    wasm-interp $f.wasm --run-all-exports --trace
+    wasm-interp $f.wasm --run-all-exports
     rm $f.wast $f.wasm
 done

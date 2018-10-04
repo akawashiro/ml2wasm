@@ -65,7 +65,7 @@ clsTrans' (K.ERec x ys e1 e2) = do
   e1' <- clsTrans' e1
   e2' <- clsTrans' e2
   let fvs = fv e1 `lminus` (x:ys)
-  let fd = FunDef (v2l x) (map v2v ys ++ [v2cls x]) (EDTuple (v2tmp x:map v2v fvs) (EVar (v2cls x)) e1')
+  let fd = FunDef (v2l x) (map v2v ys ++ [v2cls x]) (EDTuple (v2tmp x:map v2v fvs) (ELet (v2v x) (ETuple (map EVar (v2l x:map v2v fvs))) (EVar (v2cls x))) e1')
   addFunDef fd
   return $ ELet (v2v x) (ETuple (map EVar (v2l x:map v2v fvs))) e2'
 
