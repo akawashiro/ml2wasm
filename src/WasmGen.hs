@@ -40,8 +40,8 @@ instance Show Inst where
           s3 = intercalate "\n" (map show is3)
   show (CallIndirect n) = "(call_indirect " ++ concat (replicate n "(param i32) ") ++ "(result i32))"
   show (Table n) = "(table " ++ show n ++ " anyfunc)"
-  show (Func fn args is) = "(func $" ++ fn ++ " " ++ sargs ++ " (result i32)\n" ++ intercalate "\n" (map show is) ++ ")"
-    where sargs = concatMap (\x -> "(param $" ++ x ++ " i32)") args
+  show (Func fn args is) = "(func $" ++ fn ++ " " ++ sargs ++ "(result i32)\n" ++ intercalate "\n" (map show is) ++ ")"
+    where sargs = concatMap (\x -> "(param $" ++ x ++ " i32) ") args
 
 -- Wasm FunDefs Main
 data Wasm = Wasm [Inst] [Inst]

@@ -65,7 +65,9 @@ clsTrans' (K.ERec x ys e1 e2) = do
   e1' <- clsTrans' e1
   e2' <- clsTrans' e2
   let fvs = fv e1 `lminus` (x:ys)
-  let fd = FunDef (v2l x) (map v2v ys ++ [v2cls x]) (EDTuple (v2tmp x:map v2v fvs) (ELet (v2v x) (ETuple (map EVar (v2l x:map v2v fvs))) (EVar (v2cls x))) e1')
+  let fd = FunDef (v2l x) (map v2v ys ++ [v2cls x]) 
+           (EDTuple (v2tmp x:map v2v fvs) (EVar (v2cls x))
+           (ELet (v2v x) (ETuple (map EVar (v2l x:map v2v fvs))) e1'))
   addFunDef fd
   return $ ELet (v2v x) (ETuple (map EVar (v2l x:map v2v fvs))) e2'
 
@@ -105,5 +107,6 @@ fv (K.EDTuple xs e1 e2) = (fv e1 ++ fv e2) `lminus` xs
 fv (K.EApp e1 e2) = fv e1 ++ concatMap fv e2
 fv (K.ETuple e) = concatMap fv e
 
+-- Return xs - ys
 lminus :: Eq a => [a] -> [a] -> [a]
 lminus xs ys = filter (`notElem` ys) xs

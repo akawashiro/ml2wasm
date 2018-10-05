@@ -2,7 +2,7 @@
 
 stack build || exit
 
-for f in fun2 arith nestlet tuple
+for f in fib arith adder
 do
     stack exec ml2wasm -- -d ./ml-examples/$f.ml
     stack exec ml2wasm -- ./ml-examples/$f.ml > $f.wast
