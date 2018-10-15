@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -fwarn-incomplete-patterns #-}
+
 module Alpha where
 
 import Parse (Exp(..), Var(..))
@@ -30,6 +32,7 @@ isFun exp = case exp of
 exprToAlphaExpr' :: Exp -> State NameState Exp
 exprToAlphaExpr' exp = case exp of
   EInt i -> return $ EInt i
+  EBool b -> return $ EBool b
   EOp o e1 e2 -> do
     e1' <- exprToAlphaExpr' e1
     e2' <- exprToAlphaExpr' e2
@@ -69,3 +72,19 @@ exprToAlphaExpr' exp = case exp of
   ETuple es -> do
     es' <- mapM exprToAlphaExpr' es
     return $ ETuple es'
+  ESeq e1 e2 -> do
+    e1' <- exprToAlphaExpr' e1
+    e2' <- exprToAlphaExpr' e2
+    return $ ESeq e1' e2'
+  EMakeA e1 e2 -> do
+    e1' <- exprToAlphaExpr' e1
+    e2' <- exprToAlphaExpr' e2
+    return $ EMakeA e1' e2'
+  EGetA e1 e2 -> do
+    e1' <- exprToAlphaExpr' e1
+    e2' <- exprToAlphaExpr' e2
+    return $ EGetA e1' e2'
+  ESetA e1 e2 -> do
+    e1' <- exprToAlphaExpr' e1
+    e2' <- exprToAlphaExpr' e2
+    return $ ESetA e1' e2'

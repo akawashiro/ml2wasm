@@ -129,3 +129,8 @@ exp2Wasm (C.EAppCls e1 args) = do
   isargs <- concat <$> mapM exp2Wasm args
   is1 <- exp2Wasm e1
   return $ isargs ++ is1 ++ [SetLocal stackTopVar, GetLocal stackTopVar, GetLocal stackTopVar, I32Load, CallIndirect (1 + length args)]
+exp2Wasm (C.ESeq e1 e2) = do
+  is1 <- exp2Wasm e1
+  is2 <- exp2Wasm e2
+  return (is1 ++ is2)
+exp2Wasm (C.EMakeA e1 e2) = do

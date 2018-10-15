@@ -55,8 +55,8 @@ instance Show Exp where
   show (EApp e1 e2s) = show e1 ++ " " ++ show e2s
   show (ETuple es) = "(" ++ intercalate ", " (map show es) ++ ")"
   show (EMakeA e1 e2) = "make_array " ++ show e1 ++ " " ++ show e2
-  show (EGetA e1 e2) = "get_array " ++ show e1 ++ show e2
-  show (ESetA e1 e2) = "set_array " ++ show e1 ++ show e2
+  show (EGetA e1 e2) = "get_array " ++ show e1 ++ " " ++ show e2
+  show (ESetA e1 e2) = "set_array " ++ show e1 ++ " " ++ show e2
   show (ESeq e1 e2) = show e1 ++ "; " ++ show e2
 
 natDef :: P.GenLanguageDef String () Identity
@@ -143,9 +143,9 @@ parseExpApp = do
   es <- many1 parseExpAtom
   if length es == 1 then return (head es) else return (f es)
     where f es = case head es of
-                  (EVar (Var "make_array")) -> EMakeA ((head . tail) es) (es !! 1)
-                  (EVar (Var "get_array")) -> EGetA ((head . tail) es) (es !! 1)
-                  (EVar (Var "set_array")) -> ESetA ((head . tail) es) (es !! 1)
+                  (EVar (Var "make_array")) -> EMakeA (es !! 1) (es !! 2)
+                  (EVar (Var "get_array")) -> EGetA (es !! 1) (es !! 2)
+                  (EVar (Var "set_array")) -> ESetA (es !! 1) (es !! 2)
                   _ -> EApp (head es) (tail es)
 
 parseExpTuple :: Parser Exp
