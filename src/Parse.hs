@@ -36,7 +36,11 @@ data Exp = EInt Int |
            EVar Var |
            ERec Var [Var] Exp Exp |
            EApp Exp [Exp] |
-           ETuple [Exp]
+           ETuple [Exp] |
+           ESeq Exp Exp |
+           EAMake Exp Exp |
+           EAGet Exp Exp |
+           EASet Exp Exp
 instance Show Exp where
   show (EInt i) = show i
   show (EBool b) = if b then "true" else "false"
@@ -48,6 +52,10 @@ instance Show Exp where
   show (ERec x ys e1 e2) = "let rec " ++ show x ++ " " ++ show ys ++ " = " ++ show e1 ++ " in\n" ++ show e2
   show (EApp e1 e2s) = show e1 ++ " " ++ show e2s
   show (ETuple es) = "(" ++ intercalate ", " (map show es) ++ ")"
+  show (EAMake e1 e2) = "Array.make " ++ show e1 ++ " " ++ show e2
+  show (EAGet e1 e2) = "Array.get " ++ show e1 ++ show e2
+  show (EASet e1 e2) = "Array.set " ++ show e1 ++ show e2
+  show (ESeq e1 e2) = show e1 ++ "; " ++ show e2
 
 natDef :: P.GenLanguageDef String () Identity
 natDef = emptyDef { P.reservedNames = keywords, P.reservedOpNames = operators }
@@ -55,7 +63,7 @@ natDef = emptyDef { P.reservedNames = keywords, P.reservedOpNames = operators }
 keywords :: [String]
 keywords = [ "let", "rec", "in", "true", "false", "if", "then", "else", "fun"]
 
-operators = [ "=", "->", "+", "-", "*", "<", ","]
+operators = [ "=", "->", "+", "-", "*", "<", ",", ";"]
 
 
 kwLet         = P.reserved lexer "let"
@@ -74,6 +82,7 @@ kwMinusSymbol = P.reservedOp lexer "-"
 kwTimesSymbol = P.reservedOp lexer "*"
 kwLessSymbol  = P.reservedOp lexer "<"
 kwCommaSymbol = P.reservedOp lexer ","
+kwSeqSymbol   = P.reservedOp lexer ";"
 
 lexer = P.makeTokenParser natDef
 parens = P.parens lexer
