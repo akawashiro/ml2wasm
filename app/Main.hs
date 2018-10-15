@@ -6,7 +6,6 @@ import Options.Declarative
 import Parse
 import Control.Monad
 import Alpha
-import KNormal
 import NestedLet
 import Closure
 import WasmGen
@@ -15,8 +14,7 @@ import UnusedVar
 printWasmCode :: String -> IO ()
 printWasmCode input = do
   let parsed = stringToExp input
-  let knormaled = (liftM exprToKNormalExpr) parsed
-  let alphad = exprToAlphaExpr `liftM` knormaled
+  let alphad = exprToAlphaExpr `liftM` parsed
   let nonNest = expToNonNest `liftM` alphad
   let closured = clsTrans `liftM` nonNest
   let unused = removeUnused `liftM` closured
@@ -30,9 +28,7 @@ showDetails input = do
   putStr $ "Input = \n" ++ input
   let parsed = stringToExp input
   putStr $ "After parse = \n" ++ f parsed ++ "\n\n"
-  let knormaled = (liftM exprToKNormalExpr) parsed
-  putStrLn $ "After K-normalization = \n" ++ f knormaled ++ "\n"
-  let alphad = exprToAlphaExpr `liftM` knormaled
+  let alphad = exprToAlphaExpr `liftM` parsed
   putStrLn $ "After alpha conversion = \n" ++ f alphad ++ "\n"
   let nonNest = expToNonNest `liftM` alphad
   putStrLn $ "After no-nested-let conversion = \n" ++ f nonNest ++ "\n"

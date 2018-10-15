@@ -1,6 +1,6 @@
 module NestedLet where
 
-import KNormal (Exp(..), Var(..))
+import Parse (Exp(..), Var(..))
 import Control.Monad.State
 import Control.Monad
 import Data.Maybe

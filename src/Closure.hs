@@ -2,7 +2,7 @@
 
 module Closure where
 
-import qualified KNormal as K
+import qualified Parse as K
 import Data.List
 import Control.Monad.State
 

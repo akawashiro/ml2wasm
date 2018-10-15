@@ -3,7 +3,7 @@
 module WasmGen where
 
 import qualified Closure as C
-import qualified KNormal as K
+import qualified Parse as K
 import Data.Maybe
 import Data.List
 import Control.Monad.State
@@ -34,7 +34,7 @@ instance Show Inst where
   show I32Less = "(i32.lt_s)"
   show I32Load = "(i32.load)"
   show I32Store = "(i32.store)"
-  show (IfThenElse is1 is2 is3) = "(if (result i32)\n" ++ s1 ++ "\n(then\n" ++ s2 ++ ")\n" ++ "(else\n" ++ s3 ++ "))"
+  show (IfThenElse is1 is2 is3) = s1 ++ "\n(if (result i32)\n(i32.eqz)\n(then\n" ++ s3 ++ ")\n" ++ "(else\n" ++ s2 ++ "))"
     where s1 = intercalate "\n" (map show is1)
           s2 = intercalate "\n" (map show is2)
           s3 = intercalate "\n" (map show is3)
