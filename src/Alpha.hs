@@ -76,15 +76,15 @@ exprToAlphaExpr' exp = case exp of
     e1' <- exprToAlphaExpr' e1
     e2' <- exprToAlphaExpr' e2
     return $ ESeq e1' e2'
-  EMakeA e1 e2 -> do
+  EMakeA e1 -> do
     e1' <- exprToAlphaExpr' e1
-    e2' <- exprToAlphaExpr' e2
-    return $ EMakeA e1' e2'
+    return $ EMakeA e1'
   EGetA e1 e2 -> do
     e1' <- exprToAlphaExpr' e1
     e2' <- exprToAlphaExpr' e2
     return $ EGetA e1' e2'
-  ESetA e1 e2 -> do
+  ESetA e1 e2 e3 -> do
     e1' <- exprToAlphaExpr' e1
     e2' <- exprToAlphaExpr' e2
-    return $ ESetA e1' e2'
+    e3' <- exprToAlphaExpr' e3
+    return $ ESetA e1' e2' e3'

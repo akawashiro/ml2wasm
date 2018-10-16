@@ -21,9 +21,9 @@ data Exp = EInt Int |
            EAppCls Exp [Exp] |
            ETuple [Exp] |
            ESeq Exp Exp |
-           EMakeA Exp Exp |
+           EMakeA Exp |
            EGetA Exp Exp |
-           ESetA Exp Exp
+           ESetA Exp Exp Exp
            deriving (Eq)
 instance Show Exp where
   show (EInt i) = show i
@@ -35,9 +35,9 @@ instance Show Exp where
   show (ERec x ys e1 e2) = "let rec " ++ show x ++ " " ++ show ys ++ " =\n" ++ show e1 ++ " in\n" ++ show e2
   show (EAppCls e1 e2s) = show e1 ++ " " ++ show e2s
   show (ETuple es) = "(" ++ intercalate ", " (map show es) ++ ")"
-  show (EMakeA e1 e2) = "make_array " ++ show e1 ++ " " ++ show e2
+  show (EMakeA e1) = "make_array " ++ show e1
   show (EGetA e1 e2) = "get_array " ++ show e1 ++ " " ++ show e2
-  show (ESetA e1 e2) = "set_array " ++ show e1 ++ " " ++ show e2
+  show (ESetA e1 e2 e3) = "set_array " ++ show e1 ++ " " ++ show e2 ++ " " ++ show e3
   show (ESeq e1 e2) = show e1 ++ "; " ++ show e2
 
 data FunDef = FunDef Var [Var] Exp deriving (Eq)
@@ -70,8 +70,8 @@ clsTrans' (P.EDTuple xs e1 e2) = EDTuple (map v2v xs) <$> clsTrans' e1 <*> clsTr
 clsTrans' (P.EVar (P.Var s)) = return (EVar (Var s))
 clsTrans' (P.EApp e1 e2) = EAppCls <$> clsTrans' e1 <*> mapM clsTrans' e2
 clsTrans' (P.EGetA e1 e2) = EGetA <$> clsTrans' e1 <*> clsTrans' e2
-clsTrans' (P.ESetA e1 e2) = ESetA <$> clsTrans' e1 <*> clsTrans' e2
-clsTrans' (P.EMakeA e1 e2) = EMakeA <$> clsTrans' e1 <*> clsTrans' e2
+clsTrans' (P.ESetA e1 e2 e3) = ESetA <$> clsTrans' e1 <*> clsTrans' e2 <*> clsTrans' e3
+clsTrans' (P.EMakeA e1) = EMakeA <$> clsTrans' e1
 clsTrans' (P.ESeq e1 e2) = ESeq <$> clsTrans' e1 <*> clsTrans' e2
 clsTrans' (P.ETuple es) = ETuple <$> mapM clsTrans' es
 clsTrans' (P.ERec x ys e1 e2) = do
@@ -121,8 +121,8 @@ fv (P.EDTuple xs e1 e2) = (fv e1 ++ fv e2) `lminus` xs
 fv (P.EApp e1 e2) = fv e1 ++ concatMap fv e2
 fv (P.ETuple e) = concatMap fv e
 fv (P.EGetA e1 e2) = fv e1 ++ fv e2
-fv (P.EMakeA e1 e2) = fv e1 ++ fv e2
-fv (P.ESetA e1 e2) = fv e1 ++ fv e2
+fv (P.EMakeA e1) = fv e1
+fv (P.ESetA e1 e2 e3) = fv e1 ++ fv e2 ++ fv e3
 fv (P.ESeq e1 e2) = fv e1 ++ fv e2
 
 -- Return xs - ys

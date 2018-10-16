@@ -133,4 +133,18 @@ exp2Wasm (C.ESeq e1 e2) = do
   is1 <- exp2Wasm e1
   is2 <- exp2Wasm e2
   return (is1 ++ is2)
-exp2Wasm (C.EMakeA e1 e2) = do
+exp2Wasm (C.EMakeA e1) = do
+  is1 <- exp2Wasm e1
+  let setArrayAddr = [I32Const 0, I32Load, I32Const 4, I32Add]
+  let dupStackTop = [SetLocal stackTopVar, GetLocal stackTopVar, GetLocal stackTopVar]
+  let addLength = [I32Const 0] ++ is1 ++ [I32Const 4, I32Mul, I32Add, I32Store]
+  return (setArrayAddr ++ dupStackTop ++ addLength)
+exp2Wasm (C.EGetA e1 e2) = do
+  is1 <- exp2Wasm e1
+  is2 <- exp2Wasm e2
+  return (is1 ++ is2 ++ [I32Const 4, I32Mul, I32Add, I32Load])
+exp2Wasm (C.ESetA e1 e2 e3) = do
+  is1 <- exp2Wasm e1
+  is2 <- exp2Wasm e2
+  is3 <- exp2Wasm e3
+  return (is1 ++ is2 ++ [I32Const 4, I32Mul, I32Add] ++ is3 ++ [I32Store])

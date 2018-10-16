@@ -38,9 +38,9 @@ data Exp = EInt Int |
            EApp Exp [Exp] |
            ETuple [Exp] |
            ESeq Exp Exp |
-           EMakeA Exp Exp |
+           EMakeA Exp |
            EGetA Exp Exp |
-           ESetA Exp Exp
+           ESetA Exp Exp Exp
            deriving Eq
 
 instance Show Exp where
@@ -54,10 +54,10 @@ instance Show Exp where
   show (ERec x ys e1 e2) = "let rec " ++ show x ++ " " ++ show ys ++ " = " ++ show e1 ++ " in\n" ++ show e2
   show (EApp e1 e2s) = show e1 ++ " " ++ show e2s
   show (ETuple es) = "(" ++ intercalate ", " (map show es) ++ ")"
-  show (EMakeA e1 e2) = "make_array " ++ show e1 ++ " " ++ show e2
+  show (EMakeA e1) = "make_array " ++ show e1
   show (EGetA e1 e2) = "get_array " ++ show e1 ++ " " ++ show e2
-  show (ESetA e1 e2) = "set_array " ++ show e1 ++ " " ++ show e2
-  show (ESeq e1 e2) = show e1 ++ "; " ++ show e2
+  show (ESetA e1 e2 e3) = "set_array " ++ show e1 ++ " " ++ show e2  ++ " " ++ show e3
+  show (ESeq e1 e2) = show e1 ++ ";\n" ++ show e2
 
 natDef :: P.GenLanguageDef String () Identity
 natDef = emptyDef { P.reservedNames = keywords, P.reservedOpNames = operators }
@@ -91,7 +91,12 @@ parens = P.parens lexer
 whiteSpace = P.whiteSpace lexer
 
 parseExp :: Parser Exp
-parseExp = parseExpIf <|>
+parseExp = do
+  e1<-parseExpUni
+  (kwSeqSymbol >> ESeq e1 <$> parseExpUni) <|> return e1
+
+parseExpUni :: Parser Exp
+parseExpUni = parseExpIf <|>
            try parseExpLet <|>
            try parseExpDTuple <|>
            parseExpRec <|>
@@ -119,11 +124,6 @@ parseExpDTuple = do
 parseExpRec :: Parser Exp
 parseExpRec = do kwLet; kwRec; x<-parseVar; ys <- many1 parseVar; kwEqual; e1<-parseExp; kwIn; ERec x ys e1 <$> parseExp;
 
-parseExpSeq :: Parser Exp
-parseExpSeq = do
-  e1<-parseExpLt
-  (kwCommaSymbol >> ESeq e1 <$> parseExpLt) <|> return e1
-
 parseExpLt :: Parser Exp
 parseExpLt =  do 
   e1<-parseExpP
@@ -143,9 +143,9 @@ parseExpApp = do
   es <- many1 parseExpAtom
   if length es == 1 then return (head es) else return (f es)
     where f es = case head es of
-                  (EVar (Var "make_array")) -> EMakeA (es !! 1) (es !! 2)
+                  (EVar (Var "make_array")) -> EMakeA (es !! 1)
                   (EVar (Var "get_array")) -> EGetA (es !! 1) (es !! 2)
-                  (EVar (Var "set_array")) -> ESetA (es !! 1) (es !! 2)
+                  (EVar (Var "set_array")) -> ESetA (es !! 1) (es !! 2) (es !! 3)
                   _ -> EApp (head es) (tail es)
 
 parseExpTuple :: Parser Exp

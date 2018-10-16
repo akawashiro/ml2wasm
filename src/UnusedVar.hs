@@ -26,9 +26,9 @@ removeUnusedExp (C.EDTuple xs e1 e2) =
   then removeUnusedExp e2
   else C.EDTuple xs (removeUnusedExp e1) (removeUnusedExp e2)
 removeUnusedExp (C.ESeq e1 e2) = C.ESeq (removeUnusedExp e1) (removeUnusedExp e2)
-removeUnusedExp (C.EMakeA e1 e2) = C.EMakeA (removeUnusedExp e1) (removeUnusedExp e2)
+removeUnusedExp (C.EMakeA e1) = C.EMakeA (removeUnusedExp e1)
 removeUnusedExp (C.EGetA e1 e2) = C.EGetA (removeUnusedExp e1) (removeUnusedExp e2)
-removeUnusedExp (C.ESetA e1 e2) = C.ESetA (removeUnusedExp e1) (removeUnusedExp e2)
+removeUnusedExp (C.ESetA e1 e2 e3) = C.ESetA (removeUnusedExp e1) (removeUnusedExp e2) (removeUnusedExp e3)
 
 
 fv :: C.Exp -> [C.Var]
@@ -42,8 +42,8 @@ fv (C.EDTuple xs e1 e2) = (fv e1 ++ fv e2) `lminus` xs
 fv (C.EAppCls e1 e2) = fv e1 ++ concatMap fv e2
 fv (C.ETuple e) = concatMap fv e
 fv (C.EGetA e1 e2) = fv e1 ++ fv e2
-fv (C.EMakeA e1 e2) = fv e1 ++ fv e2
-fv (C.ESetA e1 e2) = fv e1 ++ fv e2
+fv (C.EMakeA e1) = fv e1
+fv (C.ESetA e1 e2 e3) = fv e1 ++ fv e2 ++ fv e3
 fv (C.ESeq e1 e2) = fv e1 ++ fv e2
 
 
