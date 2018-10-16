@@ -2,11 +2,11 @@
 
 module Alpha where
 
-import Parse (Exp(..), Var(..))
-import Control.Monad.State
-import Control.Monad
-import Data.Maybe
-import qualified Data.Map as Map
+import           Control.Monad
+import           Control.Monad.State
+import qualified Data.Map            as Map
+import           Data.Maybe
+import           Parse               (Exp (..), Var (..))
 
 exprToAlphaExpr :: Exp -> Exp
 exprToAlphaExpr exp = evalState (exprToAlphaExpr' exp) (Map.empty,0)
@@ -25,9 +25,9 @@ rename (Var s) = do
 
 isFun :: Exp -> Bool
 isFun exp = case exp of
-  ERec {} -> True
+  ERec {}    -> True
   ELet _ _ e -> isFun e
-  _ -> False
+  _          -> False
 
 exprToAlphaExpr' :: Exp -> State NameState Exp
 exprToAlphaExpr' exp = case exp of

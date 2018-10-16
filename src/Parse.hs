@@ -5,8 +5,8 @@ module Parse where
 
 import           Control.Monad.Identity
 import           Data.Either
+import           Data.List
 import           Data.Maybe
-import Data.List
 import           Debug.Trace                            (trace)
 import qualified Text.Parsec.Combinator                 as C (chainl1, chainr1)
 import           Text.ParserCombinators.Parsec
@@ -22,12 +22,12 @@ instance Show Var where
 
 data Op = OLess | OPlus | OMinus | OTimes deriving Eq
 instance Show Op where
-  show OLess = "<"
-  show OPlus = "+"
+  show OLess  = "<"
+  show OPlus  = "+"
   show OMinus = "-"
   show OTimes = "*"
 
-data Exp = EInt Int | 
+data Exp = EInt Int |
            EBool Bool |
            EOp Op Exp Exp |
            EIf Exp Exp Exp |
@@ -109,7 +109,7 @@ parseExpLet :: Parser Exp
 parseExpLet = do kwLet; x<-parseVar; kwEqual; e1<-parseExp; kwIn; ELet x e1 <$> parseExp;
 
 parseExpDTuple :: Parser Exp
-parseExpDTuple = do 
+parseExpDTuple = do
   kwLet
   vs <- parens parseVs
   kwEqual
@@ -125,7 +125,7 @@ parseExpRec :: Parser Exp
 parseExpRec = do kwLet; kwRec; x<-parseVar; ys <- many1 parseVar; kwEqual; e1<-parseExp; kwIn; ERec x ys e1 <$> parseExp;
 
 parseExpLt :: Parser Exp
-parseExpLt =  do 
+parseExpLt =  do
   e1<-parseExpP
   (kwLessSymbol >> EOp OLess e1 <$> parseExpP) <|> return e1
 

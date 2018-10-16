@@ -1,10 +1,10 @@
 module NestedLet where
 
-import Parse (Exp(..), Var(..))
-import Control.Monad.State
-import Control.Monad
-import Data.Maybe
-import qualified Data.Map as Map
+import           Control.Monad
+import           Control.Monad.State
+import qualified Data.Map            as Map
+import           Data.Maybe
+import           Parse               (Exp (..), Var (..))
 
 expToNonNest e = if e == expToNonNest' e then e else expToNonNest (expToNonNest' e)
 
@@ -21,8 +21,8 @@ expToNonNest' e = e
 
 extractLets :: Exp -> (Exp -> Exp)
 extractLets (ELet x e1 e2) = (\e -> (ELet x e1 e))
-extractLets _ = id
+extractLets _              = id
 
 extractBody :: Exp -> Exp
 extractBody (ELet x e1 e2) = e2
-extractBody e = e
+extractBody e              = e

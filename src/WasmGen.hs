@@ -2,22 +2,22 @@
 
 module WasmGen where
 
-import qualified Closure as C
-import qualified Parse as K
-import Data.Maybe
-import Data.List
-import Control.Monad.State
+import qualified Closure             as C
+import           Control.Monad.State
+import           Data.List
+import           Data.Maybe
+import qualified Parse               as K
 
-data Inst = I32Const Int | 
-            Local String | 
-            SetLocal String | 
-            GetLocal String | 
+data Inst = I32Const Int |
+            Local String |
+            SetLocal String |
+            GetLocal String |
             I32Add |
             I32Sub |
             I32Mul |
             I32Less |
             I32Load |
-            I32Store | 
+            I32Store |
             IfThenElse [Inst] [Inst] [Inst] |
             CallIndirect Int |
             Table Int |
@@ -46,13 +46,13 @@ instance Show Inst where
 -- Wasm FunDefs Main
 data Wasm = Wasm [Inst] [Inst]
 instance Show Wasm where
-  show (Wasm fds is) = 
+  show (Wasm fds is) =
     let prefix = "(module\n(memory 10)\n" in
     let table = "(table " ++ show (length fds) ++ " anyfunc)\n" in
-    let fundefs = intercalate "\n" (map show fds) ++ "\n" in 
+    let fundefs = intercalate "\n" (map show fds) ++ "\n" in
     let elem = "(elem (i32.const 0) " ++ unwords (map (\(Func fn _ _) -> "$" ++ fn) fds) ++ ")\n" in
     let mainPrefix = "(func (export \"main\") (result i32)\n" in
-    let main = intercalate "\n" (map show is) in 
+    let main = intercalate "\n" (map show is) in
     let mainSuffix = "))" in
     prefix ++ table ++ fundefs ++ elem ++ mainPrefix ++ main ++ mainSuffix
 
@@ -60,7 +60,7 @@ instance Show Wasm where
 stackTopVar = "$stack_top_var"
 
 prog2Wasm :: C.Prog -> Wasm
-prog2Wasm (C.Prog fds e) = 
+prog2Wasm (C.Prog fds e) =
   let (b,l) = runState (exp2Wasm e) GenMState {localVariables = [Local stackTopVar], label2index = f} in
   let fdiss = map (fundef2Wasm f) fds in
   Wasm fdiss (localVariables l ++ b)
@@ -100,10 +100,10 @@ exp2Wasm (C.EOp o e1 e2) = do
   is1 <- exp2Wasm e1
   is2 <- exp2Wasm e2
   return $ is1 ++ is2 ++ [op o]
-    where op K.OPlus = I32Add
+    where op K.OPlus  = I32Add
           op K.OMinus = I32Sub
           op K.OTimes = I32Mul
-          op K.OLess = I32Less
+          op K.OLess  = I32Less
 exp2Wasm (C.ELet (C.Var v) e1 e2) = do
   putLocal v
   is1 <- exp2Wasm e1
