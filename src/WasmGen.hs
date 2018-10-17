@@ -51,7 +51,7 @@ instance Show Inst where
 data Wasm = Wasm [Inst] [Inst]
 instance Show Wasm where
   show (Wasm fds is) =
-    let prefix = "(module\n(import \"host\" \"print\" (func $print_i32 (param i32)))\n(memory 10)\n" in
+    let prefix = "(module\n(import \"host\" \"print\" (func $print_i32 (param i32)))\n(memory 10000)\n" in
     let table = "(table " ++ show (length fds) ++ " anyfunc)\n" in
     let fundefs = intercalate "\n" (map show fds) ++ "\n" in
     let elem = "(elem (i32.const 0) " ++ unwords (map (\(Func fn _ _) -> "$" ++ fn) fds) ++ ")\n" in
