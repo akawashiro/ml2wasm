@@ -3,7 +3,7 @@ let rec fib n =
     then 1
     else fib (n - 1) + fib (n - 2) in
 let rec print x =
-  if 20 < x
+  if 10 < x
     then 1
     else
       let a = fib x in
