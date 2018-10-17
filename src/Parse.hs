@@ -42,7 +42,8 @@ data Exp = EInt Int |
            ESeq Exp Exp |
            EMakeA Exp |
            EGetA Exp Exp |
-           ESetA Exp Exp Exp
+           ESetA Exp Exp Exp |
+           EPrintI32 Exp
            deriving Eq
 
 instance Show Exp where
@@ -60,6 +61,7 @@ instance Show Exp where
   show (EGetA e1 e2) = "get_array " ++ show e1 ++ " " ++ show e2
   show (ESetA e1 e2 e3) = "set_array " ++ show e1 ++ " " ++ show e2  ++ " " ++ show e3
   show (ESeq e1 e2) = show e1 ++ ";\n" ++ show e2
+  show (EPrintI32 e1) = "print_i32 " ++ show e1
 
 natDef :: P.GenLanguageDef String () Identity
 natDef = emptyDef { P.reservedNames = keywords, P.reservedOpNames = operators }
@@ -149,6 +151,7 @@ parseExpApp = do
   es <- many1 parseExpAtom
   if length es == 1 then return (head es) else return (f es)
     where f es = case head es of
+                  (EVar (Var "print_i32")) -> EPrintI32 (es !! 1)
                   (EVar (Var "make_array")) -> EMakeA (es !! 1)
                   (EVar (Var "get_array")) -> EGetA (es !! 1) (es !! 2)
                   (EVar (Var "set_array")) -> ESetA (es !! 1) (es !! 2) (es !! 3)

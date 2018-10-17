@@ -29,6 +29,7 @@ removeUnusedExp (C.ESeq e1 e2) = C.ESeq (removeUnusedExp e1) (removeUnusedExp e2
 removeUnusedExp (C.EMakeA e1) = C.EMakeA (removeUnusedExp e1)
 removeUnusedExp (C.EGetA e1 e2) = C.EGetA (removeUnusedExp e1) (removeUnusedExp e2)
 removeUnusedExp (C.ESetA e1 e2 e3) = C.ESetA (removeUnusedExp e1) (removeUnusedExp e2) (removeUnusedExp e3)
+removeUnusedExp (C.EPrintI32 e) = C.EPrintI32 (removeUnusedExp e)
 
 
 fv :: C.Exp -> [C.Var]
@@ -45,6 +46,7 @@ fv (C.EGetA e1 e2)      = fv e1 ++ fv e2
 fv (C.EMakeA e1)        = fv e1
 fv (C.ESetA e1 e2 e3)   = fv e1 ++ fv e2 ++ fv e3
 fv (C.ESeq e1 e2)       = fv e1 ++ fv e2
+fv (C.EPrintI32 e)      = fv e
 
 
 -- Return xs - ys

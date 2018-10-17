@@ -23,7 +23,8 @@ data Exp = EInt Int |
            ESeq Exp Exp |
            EMakeA Exp |
            EGetA Exp Exp |
-           ESetA Exp Exp Exp
+           ESetA Exp Exp Exp |
+           EPrintI32 Exp
            deriving (Eq)
 instance Show Exp where
   show (EInt i) = show i
@@ -38,7 +39,8 @@ instance Show Exp where
   show (EMakeA e1) = "make_array " ++ show e1
   show (EGetA e1 e2) = "get_array " ++ show e1 ++ " " ++ show e2
   show (ESetA e1 e2 e3) = "set_array " ++ show e1 ++ " " ++ show e2 ++ " " ++ show e3
-  show (ESeq e1 e2) = show e1 ++ "; " ++ show e2
+  show (ESeq e1 e2) = show e1 ++ ";\n" ++ show e2
+  show (EPrintI32 e1) = "print_i32 " ++ show e1
 
 data FunDef = FunDef Var [Var] Exp deriving (Eq)
 instance Show FunDef where
@@ -63,6 +65,7 @@ clsTrans exp =
 clsTrans' :: P.Exp -> ClsTransM Exp
 clsTrans' (P.EInt i) = return (EInt i)
 clsTrans' (P.EBool b) = if b then return (EInt 1) else return (EInt 0)
+clsTrans' (P.EPrintI32 e) = EPrintI32 <$> clsTrans' e
 clsTrans' (P.EOp o e1 e2) = EOp o <$> clsTrans' e1 <*> clsTrans' e2
 clsTrans' (P.EIf e1 e2 e3) = EIf <$> clsTrans' e1 <*> clsTrans' e2 <*> clsTrans' e3
 clsTrans' (P.ELet (P.Var x) e1 e2) = ELet (Var x) <$> clsTrans' e1 <*> clsTrans' e2
@@ -124,6 +127,7 @@ fv (P.EGetA e1 e2)      = fv e1 ++ fv e2
 fv (P.EMakeA e1)        = fv e1
 fv (P.ESetA e1 e2 e3)   = fv e1 ++ fv e2 ++ fv e3
 fv (P.ESeq e1 e2)       = fv e1 ++ fv e2
+fv (P.EPrintI32 e)      = fv e
 
 -- Return xs - ys
 lminus :: Eq a => [a] -> [a] -> [a]

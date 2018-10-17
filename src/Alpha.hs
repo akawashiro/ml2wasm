@@ -88,3 +88,4 @@ exprToAlphaExpr' exp = case exp of
     e2' <- exprToAlphaExpr' e2
     e3' <- exprToAlphaExpr' e3
     return $ ESetA e1' e2' e3'
+  EPrintI32 e1 -> EPrintI32 <$> exprToAlphaExpr' e1

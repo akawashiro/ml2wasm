@@ -22,7 +22,8 @@ data Inst = I32Const Int |
             IfThenElse [Inst] [Inst] [Inst] |
             CallIndirect Int |
             Table Int |
-            Func String [String] [Inst]
+            Func String [String] [Inst] |
+            PrintInt 
             deriving (Eq)
 instance Show Inst where
   show (I32Const i) = "(i32.const " ++ show i ++ ")"
@@ -44,12 +45,13 @@ instance Show Inst where
   show (Table n) = "(table " ++ show n ++ " anyfunc)"
   show (Func fn args is) = "(func $" ++ fn ++ " " ++ sargs ++ "(result i32)\n" ++ intercalate "\n" (map show is) ++ ")"
     where sargs = concatMap (\x -> "(param $" ++ x ++ " i32) ") args
+  show PrintInt = "(call $print_i32)"
 
 -- Wasm FunDefs Main
 data Wasm = Wasm [Inst] [Inst]
 instance Show Wasm where
   show (Wasm fds is) =
-    let prefix = "(module\n(memory 10)\n" in
+    let prefix = "(module\n(import \"host\" \"print\" (func $print_i32 (param i32)))\n(memory 10)\n" in
     let table = "(table " ++ show (length fds) ++ " anyfunc)\n" in
     let fundefs = intercalate "\n" (map show fds) ++ "\n" in
     let elem = "(elem (i32.const 0) " ++ unwords (map (\(Func fn _ _) -> "$" ++ fn) fds) ++ ")\n" in
@@ -151,3 +153,6 @@ exp2Wasm (C.ESetA e1 e2 e3) = do
   is2 <- exp2Wasm e2
   is3 <- exp2Wasm e3
   return (is1 ++ is2 ++ [I32Const 4, I32Mul, I32Add] ++ is3 ++ [I32Store])
+exp2Wasm (C.EPrintI32 e) = do
+  is <- exp2Wasm e
+  return (is ++ [PrintInt])
