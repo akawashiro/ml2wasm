@@ -3,5 +3,4 @@ This project is under construction.
 A compiler from ML to web assembly.
 
 ## TODO
-- Support interger division
 - Mandelbrot set sample program

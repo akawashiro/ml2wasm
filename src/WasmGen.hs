@@ -15,6 +15,7 @@ data Inst = I32Const Int |
             I32Add |
             I32Sub |
             I32Mul |
+            I32Div |
             I32Less |
             I32Load |
             I32Store |
@@ -31,6 +32,7 @@ instance Show Inst where
   show I32Add = "(i32.add)"
   show I32Sub = "(i32.sub)"
   show I32Mul = "(i32.mul)"
+  show I32Div = "(i32.div_s)"
   show I32Less = "(i32.lt_s)"
   show I32Load = "(i32.load)"
   show I32Store = "(i32.store)"
@@ -104,6 +106,7 @@ exp2Wasm (C.EOp o e1 e2) = do
           op K.OMinus = I32Sub
           op K.OTimes = I32Mul
           op K.OLess  = I32Less
+          op K.ODiv   = I32Div
 exp2Wasm (C.ELet (C.Var v) e1 e2) = do
   putLocal v
   is1 <- exp2Wasm e1

@@ -1,4 +1,5 @@
 {-# LANGUAGE FlexibleContexts #-}
+{-# OPTIONS_GHC -fwarn-incomplete-patterns #-}
 
 -- module Parse (stringToExp, Exp(..)) where
 module Parse where
@@ -20,12 +21,13 @@ newtype Var = Var String deriving Eq
 instance Show Var where
   show (Var s) = s
 
-data Op = OLess | OPlus | OMinus | OTimes deriving Eq
+data Op = OLess | OPlus | OMinus | OTimes |ODiv deriving Eq
 instance Show Op where
   show OLess  = "<"
   show OPlus  = "+"
   show OMinus = "-"
   show OTimes = "*"
+  show ODiv = "/"
 
 data Exp = EInt Int |
            EBool Bool |
@@ -65,7 +67,7 @@ natDef = emptyDef { P.reservedNames = keywords, P.reservedOpNames = operators }
 keywords :: [String]
 keywords = [ "let", "rec", "in", "true", "false", "if", "then", "else", "fun"]
 
-operators = [ "=", "->", "+", "-", "*", "<", ",", ";"]
+operators = [ "=", "->", "+", "-", "*", "<", ",", ";", "/"]
 
 
 kwLet         = P.reserved lexer "let"
@@ -82,6 +84,7 @@ kwArrowSymbol = P.reservedOp lexer "->"
 kwPlusSymbol  = P.reservedOp lexer "+"
 kwMinusSymbol = P.reservedOp lexer "-"
 kwTimesSymbol = P.reservedOp lexer "*"
+kwDivSymbol   = P.reservedOp lexer "/"
 kwLessSymbol  = P.reservedOp lexer "<"
 kwCommaSymbol = P.reservedOp lexer ","
 kwSeqSymbol   = P.reservedOp lexer ";"
@@ -136,7 +139,10 @@ parseExpM :: Parser Exp
 parseExpM = C.chainl1 parseExpT (kwMinusSymbol >> return (EOp OMinus))
 
 parseExpT :: Parser Exp
-parseExpT = C.chainl1 parseExpApp (kwTimesSymbol >> return (EOp OTimes))
+parseExpT = C.chainl1 parseExpD (kwTimesSymbol >> return (EOp OTimes))
+
+parseExpD :: Parser Exp
+parseExpD = C.chainl1 parseExpApp (kwDivSymbol >> return (EOp ODiv))
 
 parseExpApp :: Parser Exp
 parseExpApp = do
