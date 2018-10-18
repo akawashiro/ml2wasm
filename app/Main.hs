@@ -6,7 +6,6 @@ import Options.Declarative
 import Parse
 import Control.Monad
 import Alpha
-import NestedLet
 import Closure
 import WasmGen
 import UnusedVar
@@ -15,8 +14,7 @@ printWasmCode :: String -> IO ()
 printWasmCode input = do
   let parsed = stringToExp input
   let alphad = exprToAlphaExpr `liftM` parsed
-  let nonNest = expToNonNest `liftM` alphad
-  let closured = clsTrans `liftM` nonNest
+  let closured = clsTrans `liftM` alphad
   let unused = removeUnused `liftM` closured
   let wasm = prog2Wasm `liftM` unused
   putStrLn (f wasm)
@@ -30,9 +28,7 @@ showDetails input = do
   putStr $ "After parse = \n" ++ f parsed ++ "\n\n"
   let alphad = exprToAlphaExpr `liftM` parsed
   putStrLn $ "After alpha conversion = \n" ++ f alphad ++ "\n"
-  let nonNest = expToNonNest `liftM` alphad
-  putStrLn $ "After no-nested-let conversion = \n" ++ f nonNest ++ "\n"
-  let closured = clsTrans `liftM` nonNest
+  let closured = clsTrans `liftM` alphad
   putStrLn $ "After closure translation = \n" ++ f closured ++ "\n"
   let unused = removeUnused `liftM` closured
   putStrLn $ "After unused variable translation = \n" ++ f unused ++ "\n"
