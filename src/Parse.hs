@@ -1,27 +1,27 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# OPTIONS_GHC -fwarn-incomplete-patterns #-}
 
--- module Parse (stringToExp, Exp(..)) where
-module Parse where
+module Parse (stringToExp, Exp(..), Type(..), TVarIndex, Op(..), Var(..)) where
 
 import           Control.Monad.Identity
+import           Control.Monad.State
 import           Data.Either
 import           Data.List
 import           Data.Maybe
 import           Debug.Trace                            (trace)
 import qualified Text.Parsec.Combinator                 as C (chainl1, chainr1)
-import           Text.ParserCombinators.Parsec
+import           Text.ParserCombinators.Parsec          hiding (State)
 import           Text.ParserCombinators.Parsec.Language
 import qualified Text.ParserCombinators.Parsec.Token    as P
 
 stringToExp :: String -> Either String Exp
-stringToExp input = either (Left . show) Right (parse parseExp "Parse.hs" input)
+stringToExp input = either (Left . show) (Right . renameTypeUnit) (parse parseExp "Parse.hs" input)
 
 type TVarIndex = Int
 data Type = TInt | 
-            TBool | 
+            -- TBool | 
             TFloat | 
-            TFun Type Type | 
+            TFun [Type] Type | 
             TTuple [Type] | 
             TArray Type | 
             TUnit | 
@@ -83,6 +83,43 @@ instance Show Exp where
   show (ESeq t e1 e2) = show e1 ++ ";\n" ++ show e2 ++ "):" ++ show t
   show (EPrintI32 t e1) = "(print_i32 " ++ show e1 ++ "):" ++ show t
   show (EPrintF32 t e1) = "(print_f32 " ++ show e1 ++ "):" ++ show t
+
+renameTypeUnit :: Exp -> Exp
+renameTypeUnit e = evalState (rt e) (0,[])
+
+ntv :: State (TVarIndex, [(String, TVarIndex)]) Type
+ntv = do
+  (i,m) <- get
+  put (i+1,m)
+  return (TVar i)
+
+rt' :: Var -> State (TVarIndex, [(String, TVarIndex)]) Var
+rt' (Var _ s) = do
+  (i,m) <- get
+  case lookup s m of
+    Just x -> return (Var (TVar x) s)
+    Nothing -> do
+      put (i+1, (s,i):m)
+      return (Var (TVar i) s)
+
+rt :: Exp -> State (TVarIndex, [(String, TVarIndex)]) Exp
+rt (EInt _ i) = return (EInt TInt i)
+rt (EFloat _ f) = return (EFloat TFloat f)
+rt (EBool _ b) = return (EBool TInt b)
+rt (EOp _ o e1 e2) = EOp <$> ntv <*> pure o <*> rt e1 <*> rt e2
+rt (EIf _ e1 e2 e3) = EIf <$> ntv <*> rt e1 <*> rt e2 <*> rt e3
+rt (ELet _ v e1 e2) = ELet <$> ntv <*> rt' v <*> rt e1 <*> rt e2
+rt (EDTuple _ vs e1 e2) = EDTuple <$> ntv <*> mapM rt' vs <*> rt e1 <*> rt e2
+rt (EVar _ v) = EVar <$> ntv <*> rt' v
+rt (ERec _ x ys e1 e2) = ERec <$> ntv <*> rt' x <*> mapM rt' ys <*> rt e1 <*> rt e2
+rt (EApp _ e1 e2) = EApp <$> ntv <*> rt e1 <*> mapM rt e2
+rt (ETuple _ es) = ETuple <$> ntv <*> mapM rt es
+rt (ESeq _ e1 e2) = ESeq <$> ntv <*> rt e1 <*> rt e2
+rt (EMakeA _ e1) = EMakeA <$> ntv <*> rt e1
+rt (EGetA _ e1 e2) = EGetA <$> ntv <*> rt e1 <*> rt e2
+rt (ESetA _ e1 e2 e3) = ESetA <$> ntv <*> rt e1 <*> rt e2 <*> rt e3
+rt (EPrintI32 _ e) = EPrintI32 <$> pure TUnit <*> rt e
+rt (EPrintF32 _ e) = EPrintF32 <$> pure TUnit <*> rt e
 
 natDef :: P.GenLanguageDef String () Identity
 natDef = emptyDef { P.reservedNames = keywords, P.reservedOpNames = operators }

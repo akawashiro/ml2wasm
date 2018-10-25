@@ -4,6 +4,7 @@ module Main where
 import Control.Monad.Trans
 import Options.Declarative
 import Parse
+import Type
 import Control.Monad
 -- import Alpha
 -- import Closure
@@ -27,6 +28,8 @@ showDetails input = do
   putStr $ "Input = \n" ++ input
   let parsed = stringToExp input
   putStr $ "After parse = \n" ++ f parsed ++ "\n\n"
+  let typed = typingExp `liftM` parsed
+  putStr $ "After typing = \n" ++ f typed ++ "\n\n"
   -- let alphad = exprToAlphaExpr `liftM` parsed
   -- putStrLn $ "After alpha conversion = \n" ++ f alphad ++ "\n"
   -- let closured = clsTrans `liftM` alphad
