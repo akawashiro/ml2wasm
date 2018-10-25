@@ -11,7 +11,7 @@ cabal-version:       >=1.10
 
 library
   hs-source-dirs:      src
-  exposed-modules:     Parse, Alpha, NestedLet, Closure, WasmGen, UnusedVar
+  exposed-modules:     Parse
   build-depends:       base >= 4.7 && < 5
                      , parsec
                      , mtl

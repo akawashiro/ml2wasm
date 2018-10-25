@@ -17,9 +17,20 @@ import qualified Text.ParserCombinators.Parsec.Token    as P
 stringToExp :: String -> Either String Exp
 stringToExp input = either (Left . show) Right (parse parseExp "Parse.hs" input)
 
-newtype Var = Var String deriving Eq
+type TVarIndex = Int
+data Type = TInt | 
+            TBool | 
+            TFloat | 
+            TFun Type Type | 
+            TTuple [Type] | 
+            TArray Type | 
+            TUnit | 
+            TVar TVarIndex 
+            deriving (Eq, Show)
+
+data Var = Var Type String deriving Eq
 instance Show Var where
-  show (Var s) = s
+  show (Var t s) = s ++ ":" ++ show t
 
 data Op = OLess | OPlus | OMinus | OTimes | ODiv | OFLess | OFPlus | OFMinus | OFTimes | OFDiv deriving Eq
 instance Show Op where
@@ -35,43 +46,43 @@ instance Show Op where
   show OFDiv = "/."
 
 
-data Exp = EInt Int |
-           EFloat Float |
-           EBool Bool |
-           EOp Op Exp Exp |
-           EIf Exp Exp Exp |
-           ELet Var Exp Exp |
-           EDTuple [Var] Exp Exp |
-           EVar Var |
-           ERec Var [Var] Exp Exp |
-           EApp Exp [Exp] |
-           ETuple [Exp] |
-           ESeq Exp Exp |
-           EMakeA Exp |
-           EGetA Exp Exp |
-           ESetA Exp Exp Exp |
-           EPrintI32 Exp |
-           EPrintF32 Exp
+data Exp = EInt Type Int |
+           EFloat Type Float |
+           EBool Type Bool |
+           EOp Type Op Exp Exp |
+           EIf Type Exp Exp Exp |
+           ELet Type Var Exp Exp |
+           EDTuple Type [Var] Exp Exp |
+           EVar Type Var |
+           ERec Type Var [Var] Exp Exp |
+           EApp Type Exp [Exp] |
+           ETuple Type [Exp] |
+           ESeq Type Exp Exp |
+           EMakeA Type Exp |
+           EGetA Type Exp Exp |
+           ESetA Type Exp Exp Exp |
+           EPrintI32 Type Exp |
+           EPrintF32 Type Exp 
            deriving Eq
 
 instance Show Exp where
-  show (EInt i) = show i
-  show (EFloat f) = show f
-  show (EBool b) = if b then "true" else "false"
-  show (EIf e1 e2 e3) = "if " ++ show e1 ++ "\nthen " ++ show e2 ++ "\nelse " ++ show e3
-  show (EOp o e1 e2) = "(" ++ show o ++ " " ++ show e1 ++ " " ++ show e2 ++ ")"
-  show (ELet v e1 e2) = "let " ++ show v ++ " = " ++ show e1 ++ " in\n" ++ show e2
-  show (EDTuple vs e1 e2) = "let (" ++ intercalate ", " (map show vs) ++ ") = " ++ show e1 ++ " in\n" ++ show e2
-  show (EVar v) = show v
-  show (ERec x ys e1 e2) = "let rec " ++ show x ++ " " ++ show ys ++ " = " ++ show e1 ++ " in\n" ++ show e2
-  show (EApp e1 e2s) = show e1 ++ " " ++ show e2s
-  show (ETuple es) = "(" ++ intercalate ", " (map show es) ++ ")"
-  show (EMakeA e1) = "make_array " ++ show e1
-  show (EGetA e1 e2) = "get_array " ++ show e1 ++ " " ++ show e2
-  show (ESetA e1 e2 e3) = "set_array " ++ show e1 ++ " " ++ show e2  ++ " " ++ show e3
-  show (ESeq e1 e2) = show e1 ++ ";\n" ++ show e2
-  show (EPrintI32 e1) = "print_i32 " ++ show e1
-  show (EPrintF32 e1) = "print_f32 " ++ show e1
+  show (EInt t i) = show i ++ ":" ++ show t
+  show (EFloat t f) = show f ++ ":" ++ show t
+  show (EBool t b) = if b then "true" else "false" ++ ":" ++ show t
+  show (EIf t e1 e2 e3) = "(if " ++ show e1 ++ "\nthen " ++ show e2 ++ "\nelse " ++ show e3 ++ "):" ++ show t
+  show (EOp t o e1 e2) = "(" ++ show o ++ " " ++ show e1 ++ " " ++ show e2 ++ ")" ++ ":" ++ show t
+  show (ELet t v e1 e2) = "let " ++ show v ++ " = " ++ show e1 ++ " in\n" ++ show e2 ++ ":" ++ show t
+  show (EDTuple t vs e1 e2) = "let (" ++ intercalate ", " (map show vs) ++ ") = " ++ show e1 ++ " in\n" ++ show e2 ++ " : " ++ show t
+  show (EVar t v) = show v ++ ":" ++ show t
+  show (ERec t x ys e1 e2) = "(let rec " ++ show x ++ " " ++ show ys ++ " = " ++ show e1 ++ " in\n" ++ show e2 ++ "):" ++ show t
+  show (EApp t e1 e2s) = "(" ++ show e1 ++ " " ++ show e2s ++ "):" ++ show t
+  show (ETuple t es) = "(" ++ intercalate ", " (map show es) ++ ")" ++ ":" ++ show t
+  show (EMakeA t e1) = "(make_array " ++ show e1 ++ "):" ++ show t
+  show (EGetA t e1 e2) = "(get_array " ++ show e1 ++ " " ++ show e2 ++ "):" ++ show t
+  show (ESetA t e1 e2 e3) = "(set_array " ++ show e1 ++ " " ++ show e2  ++ " " ++ show e3 ++ "):" ++ show t
+  show (ESeq t e1 e2) = show e1 ++ ";\n" ++ show e2 ++ "):" ++ show t
+  show (EPrintI32 t e1) = "(print_i32 " ++ show e1 ++ "):" ++ show t
+  show (EPrintF32 t e1) = "(print_f32 " ++ show e1 ++ "):" ++ show t
 
 natDef :: P.GenLanguageDef String () Identity
 natDef = emptyDef { P.reservedNames = keywords, P.reservedOpNames = operators }
@@ -114,7 +125,7 @@ whiteSpace = P.whiteSpace lexer
 parseExp :: Parser Exp
 parseExp = do
   e1<-parseExpUni
-  (kwSeqSymbol >> ESeq e1 <$> parseExpUni) <|> return e1
+  (kwSeqSymbol >> ESeq TUnit e1 <$> parseExpUni) <|> return e1
 
 parseExpUni :: Parser Exp
 parseExpUni = parseExpIf <|>
@@ -124,10 +135,10 @@ parseExpUni = parseExpIf <|>
            parseExpLt
 
 parseExpIf :: Parser Exp
-parseExpIf = do kwIf; e1<-parseExp; kwThen; e2<-parseExp; kwElse; EIf e1 e2 <$> parseExp;
+parseExpIf = do kwIf; e1<-parseExp; kwThen; e2<-parseExp; kwElse; EIf TUnit e1 e2 <$> parseExp;
 
 parseExpLet :: Parser Exp
-parseExpLet = do kwLet; x<-parseVar; kwEqual; e1<-parseExp; kwIn; ELet x e1 <$> parseExp;
+parseExpLet = do kwLet; x<-parseVar; kwEqual; e1<-parseExp; kwIn; ELet TUnit x e1 <$> parseExp;
 
 parseExpDTuple :: Parser Exp
 parseExpDTuple = do
@@ -136,58 +147,58 @@ parseExpDTuple = do
   kwEqual
   e1 <- parseExp
   kwIn
-  EDTuple vs e1 <$> parseExp
+  EDTuple TUnit vs e1 <$> parseExp
     where parseVs = do
             h <- parseVar
             t <- many (kwCommaSymbol >> parseVar)
             return (h:t)
 
 parseExpRec :: Parser Exp
-parseExpRec = do kwLet; kwRec; x<-parseVar; ys <- many1 parseVar; kwEqual; e1<-parseExp; kwIn; ERec x ys e1 <$> parseExp;
+parseExpRec = do kwLet; kwRec; x<-parseVar; ys <- many1 parseVar; kwEqual; e1<-parseExp; kwIn; ERec TUnit x ys e1 <$> parseExp;
 
 parseExpLt :: Parser Exp
 parseExpLt =  do
   e1<-parseExpP
-  (kwLessSymbol >> EOp OLess e1 <$> parseExpP) <|> 
-    (kwFLessSymbol >> EOp OFLess e1 <$> parseExpP) <|> 
+  (kwLessSymbol >> EOp TUnit OLess e1 <$> parseExpP) <|> 
+    (kwFLessSymbol >> EOp TUnit OFLess e1 <$> parseExpP) <|> 
     return e1
 
 parseExpP :: Parser Exp
-parseExpP = C.chainl1 parseExpM ((kwPlusSymbol >> return (EOp OPlus)) <|> (kwFPlusSymbol >> return (EOp OFPlus)))
+parseExpP = C.chainl1 parseExpM ((kwPlusSymbol >> return (EOp TUnit OPlus)) <|> (kwFPlusSymbol >> return (EOp TUnit OFPlus)))
 
 parseExpM :: Parser Exp
-parseExpM = C.chainl1 parseExpT ((kwMinusSymbol >> return (EOp OMinus)) <|> (kwFMinusSymbol >> return (EOp OFMinus)))
+parseExpM = C.chainl1 parseExpT ((kwMinusSymbol >> return (EOp TUnit OMinus)) <|> (kwFMinusSymbol >> return (EOp TUnit OFMinus)))
 
 parseExpT :: Parser Exp
-parseExpT = C.chainl1 parseExpD ((kwTimesSymbol >> return (EOp OTimes)) <|> (kwFTimesSymbol >> return (EOp OFTimes)))
+parseExpT = C.chainl1 parseExpD ((kwTimesSymbol >> return (EOp TUnit OTimes)) <|> (kwFTimesSymbol >> return (EOp TUnit OFTimes)))
 
 parseExpD :: Parser Exp
-parseExpD = C.chainl1 parseExpApp ((kwDivSymbol >> return (EOp ODiv)) <|> (kwFDivSymbol >> return (EOp OFDiv)))
+parseExpD = C.chainl1 parseExpApp ((kwDivSymbol >> return (EOp TUnit ODiv)) <|> (kwFDivSymbol >> return (EOp TUnit OFDiv)))
 
 parseExpApp :: Parser Exp
 parseExpApp = do
   es <- many1 parseExpAtom
   if length es == 1 then return (head es) else return (f es)
     where f es = case head es of
-                  (EVar (Var "print_i32")) -> EPrintI32 (es !! 1)
-                  (EVar (Var "print_f32")) -> EPrintF32 (es !! 1)
-                  (EVar (Var "make_array")) -> EMakeA (es !! 1)
-                  (EVar (Var "get_array")) -> EGetA (es !! 1) (es !! 2)
-                  (EVar (Var "set_array")) -> ESetA (es !! 1) (es !! 2) (es !! 3)
-                  _ -> EApp (head es) (tail es)
+                  (EVar t (Var t' "print_i32")) -> EPrintI32 TUnit (es !! 1)
+                  (EVar t (Var t' "print_f32")) -> EPrintF32 TUnit (es !! 1)
+                  (EVar t (Var t' "make_array")) -> EMakeA TUnit (es !! 1)
+                  (EVar t (Var t' "get_array")) -> EGetA TUnit (es !! 1) (es !! 2)
+                  (EVar t (Var t' "set_array")) -> ESetA TUnit (es !! 1) (es !! 2) (es !! 3)
+                  _ -> EApp TUnit (head es) (tail es)
 
 parseExpTuple :: Parser Exp
 parseExpTuple = do
   h <- parseExp
   t <- many (kwCommaSymbol >> parseExp)
-  if null t then return h else return (ETuple (h:t))
+  if null t then return h else return (ETuple TUnit (h:t))
 
 parseExpAtom :: Parser Exp
 parseExpAtom = parens parseExpTuple
-               <|> (EBool <$> parseBool)
-               <|> try (EFloat <$> parseFloat)
-               <|> try (EInt <$> parseInt)
-               <|> (EVar <$> parseVar)
+               <|> (EBool TUnit <$> parseBool)
+               <|> try (EFloat TUnit <$> parseFloat)
+               <|> try (EInt TUnit <$> parseInt)
+               <|> (EVar TUnit <$> parseVar)
 
 parseBool :: Parser Bool
 parseBool = (kwTrue >> return True) <|> (kwFalse >> return False)
@@ -206,5 +217,5 @@ parseInt = (do whiteSpace; char '-'; ds<-many1 digit; whiteSpace; return $ -1 * 
            <|> (do whiteSpace; ds<-many1 digit; whiteSpace; return $ read ds)
 
 parseVar :: Parser Var
-parseVar = Var <$> P.identifier lexer
+parseVar = Var TUnit <$> P.identifier lexer
 
