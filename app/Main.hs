@@ -6,10 +6,10 @@ import Options.Declarative
 import Parse
 import Type
 import Control.Monad
--- import Alpha
--- import Closure
--- import WasmGen
--- import UnusedVar
+import Alpha
+import Closure
+import WasmGen
+import UnusedVar
 
 printWasmCode :: String -> IO ()
 printWasmCode input = do
@@ -28,12 +28,12 @@ showDetails input = do
   putStr $ "Input = \n" ++ input
   let parsed = stringToExp input
   putStr $ "After parse = \n" ++ f parsed ++ "\n\n"
-  let typed = typingExp `liftM` parsed
+  let typed = parsed >>= typingExp
   putStr $ "After typing = \n" ++ f typed ++ "\n\n"
-  -- let alphad = exprToAlphaExpr `liftM` parsed
-  -- putStrLn $ "After alpha conversion = \n" ++ f alphad ++ "\n"
-  -- let closured = clsTrans `liftM` alphad
-  -- putStrLn $ "After closure translation = \n" ++ f closured ++ "\n"
+  let alphad = exprToAlphaExpr <$> typed
+  putStrLn $ "After alpha conversion = \n" ++ f alphad ++ "\n"
+  let closured = clsTrans `liftM` alphad
+  putStrLn $ "After closure translation = \n" ++ f closured ++ "\n"
   -- let unused = removeUnused `liftM` closured
   -- putStrLn $ "After unused variable translation = \n" ++ f unused ++ "\n"
   -- let wasm = prog2Wasm `liftM` unused

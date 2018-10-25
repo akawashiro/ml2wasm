@@ -5,10 +5,7 @@ module Parse (stringToExp, Exp(..), Type(..), TVarIndex, Op(..), Var(..)) where
 
 import           Control.Monad.Identity
 import           Control.Monad.State
-import           Data.Either
 import           Data.List
-import           Data.Maybe
-import           Debug.Trace                            (trace)
 import qualified Text.Parsec.Combinator                 as C (chainl1, chainr1)
 import           Text.ParserCombinators.Parsec          hiding (State)
 import           Text.ParserCombinators.Parsec.Language
@@ -73,7 +70,7 @@ instance Show Exp where
   show (EOp t o e1 e2) = "(" ++ show o ++ " " ++ show e1 ++ " " ++ show e2 ++ ")" ++ ":" ++ show t
   show (ELet t v e1 e2) = "let " ++ show v ++ " = " ++ show e1 ++ " in\n" ++ show e2 ++ ":" ++ show t
   show (EDTuple t vs e1 e2) = "let (" ++ intercalate ", " (map show vs) ++ ") = " ++ show e1 ++ " in\n" ++ show e2 ++ " : " ++ show t
-  show (EVar t v) = show v ++ ":" ++ show t
+  show (EVar t v) = show v -- ++ ":" ++ show t
   show (ERec t x ys e1 e2) = "(let rec " ++ show x ++ " " ++ show ys ++ " = " ++ show e1 ++ " in\n" ++ show e2 ++ "):" ++ show t
   show (EApp t e1 e2s) = "(" ++ show e1 ++ " " ++ show e2s ++ "):" ++ show t
   show (ETuple t es) = "(" ++ intercalate ", " (map show es) ++ ")" ++ ":" ++ show t
