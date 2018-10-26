@@ -8,8 +8,8 @@ import Type
 import Control.Monad
 import Alpha
 import Closure
-import WasmGen
 import UnusedVar
+-- import WasmGen
 
 printWasmCode :: String -> IO ()
 printWasmCode input = do
@@ -34,8 +34,8 @@ showDetails input = do
   putStrLn $ "After alpha conversion = \n" ++ f alphad ++ "\n"
   let closured = clsTrans `liftM` alphad
   putStrLn $ "After closure translation = \n" ++ f closured ++ "\n"
-  -- let unused = removeUnused `liftM` closured
-  -- putStrLn $ "After unused variable translation = \n" ++ f unused ++ "\n"
+  let unused = removeUnused `liftM` closured
+  putStrLn $ "After unused variable translation = \n" ++ f unused ++ "\n"
   -- let wasm = prog2Wasm `liftM` unused
   -- putStrLn $ "Generated wasm code = \n" ++ f wasm ++ "\n"
     where f a = either show show a

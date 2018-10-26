@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -fwarn-incomplete-patterns #-}
 
-module Type (typingExp) where
+module Type (typingExp, getTypeOfVar, getTypeOfExp) where
 
 import Control.Monad.State
 import Control.Monad.Trans.Maybe
@@ -54,6 +54,8 @@ at s t = t
 -- Apply substitution to an variable
 av sub (Var t s) = (Var (at sub t) s)
 
+getTypeOfExp = gt
+
 -- Get Type of Exp
 gt :: Exp -> Type
 gt (EInt _ _) = TInt
@@ -73,6 +75,8 @@ gt (EGetA t _ _) = t
 gt (ESetA t _ _ _) = t
 gt (EPrintI32 t _) = t
 gt (EPrintF32 t _) = t
+
+getTypeOfVar = gt'
 
 gt' (Var t _) = t
 
