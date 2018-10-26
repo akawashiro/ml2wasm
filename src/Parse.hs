@@ -90,6 +90,11 @@ ntv = do
   put (i+1,m)
   return (TVar i)
 
+dtv :: Var -> State (TVarIndex, [(String, TVarIndex)]) ()
+dtv (Var _ s) = do
+  (i,m) <- get
+  put (i,filter (\x -> fst x /= s) m)
+
 rt' :: Var -> State (TVarIndex, [(String, TVarIndex)]) Var
 rt' (Var _ s) = do
   (i,m) <- get
@@ -108,7 +113,7 @@ rt (EIf _ e1 e2 e3) = EIf <$> ntv <*> rt e1 <*> rt e2 <*> rt e3
 rt (ELet _ v e1 e2) = ELet <$> ntv <*> rt' v <*> rt e1 <*> rt e2
 rt (EDTuple _ vs e1 e2) = EDTuple <$> ntv <*> mapM rt' vs <*> rt e1 <*> rt e2
 rt (EVar _ v) = EVar <$> ntv <*> rt' v
-rt (ERec _ x ys e1 e2) = ERec <$> ntv <*> rt' x <*> mapM rt' ys <*> rt e1 <*> rt e2
+rt (ERec _ x ys e1 e2) = ERec <$> ntv <*> rt' x <*> mapM rt' ys <*> rt e1 <*> (mapM_ dtv ys >> rt e2)
 rt (EApp _ e1 e2) = EApp <$> ntv <*> rt e1 <*> mapM rt e2
 rt (ETuple _ es) = ETuple <$> ntv <*> mapM rt es
 rt (ESeq _ e1 e2) = ESeq <$> ntv <*> rt e1 <*> rt e2
@@ -159,7 +164,7 @@ whiteSpace = P.whiteSpace lexer
 parseExp :: Parser Exp
 parseExp = do
   e1<-parseExpUni
-  (kwSeqSymbol >> ESeq TUnit e1 <$> parseExpUni) <|> return e1
+  (kwSeqSymbol >> ESeq TUnit e1 <$> parseExp) <|> return e1
 
 parseExpUni :: Parser Exp
 parseExpUni = parseExpIf <|>

@@ -16,7 +16,8 @@ type NameState = (Map.Map String String, Int)
 addNewName :: String -> Var -> State NameState ()
 addNewName prefix (Var t s) = do
   (m,i) <- get
-  unless (Map.member s m) $ put (Map.insert s (prefix ++ s ++ "_" ++ show i) m , i+1)
+  -- unless (Map.member s m) $ put (Map.insert s (prefix ++ s ++ "_" ++ show i) m , i+1)
+  put (Map.insert s (prefix ++ s ++ "_" ++ show i) m , i+1)
 
 rename :: Var -> State NameState Var
 rename (Var t s) = do

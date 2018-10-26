@@ -111,7 +111,9 @@ type GenM a = (State GenMState a)
 putLocal :: P.Type -> String -> GenM ()
 putLocal t s = do
   d <- get
-  put d {localVariables = Local t ("$"++s):localVariables d}
+  if Local t ("$"++s) `elem` localVariables d
+  then return ()
+  else put d {localVariables = Local t ("$"++s):localVariables d}
 
 getLabelIndex :: C.Var -> GenM Int
 getLabelIndex l = do
