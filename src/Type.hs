@@ -96,7 +96,7 @@ ms (EOp t op e1 e2) = [(t,rt),(et,gt e1),(et,gt e2)] ++ ms e1 ++ ms e2
           OFMinus -> (TFloat, TFloat)
           OFTimes -> (TFloat, TFloat)
           OFDiv -> (TFloat, TFloat)
-ms (EIf t e1 e2 e3) = [(t,gt e1),(t,gt e2),(TInt,gt e1)] ++ ms e1 ++ ms e2 ++ ms e3
+ms (EIf t e1 e2 e3) = [(t,gt e2),(t,gt e3),(TInt,gt e1)] ++ ms e1 ++ ms e2 ++ ms e3
 ms (ELet t v e1 e2) = [(t,gt e2),(gt' v,gt e1)] ++ ms e1 ++ ms e2
 ms (EDTuple t vs e1 e2) = [(TTuple (map gt' vs),gt e1),(t,gt e2)] ++ ms e1 ++ ms e2
 ms (EVar t v) = [(t,gt' v)]
@@ -106,7 +106,7 @@ ms (ETuple t es) = (t, TTuple (map gt es)) : concatMap ms es
 ms (ESeq t e1 e2) = [(TUnit,gt e1), (t, gt e2)] ++ ms e1 ++ ms e2
 ms (EMakeA t e) = (TInt, gt e) : ms e
 ms (EGetA t e1 e2) = [(TArray t, gt e1), (TInt, gt e2)] ++ ms e1 ++ ms e2
-ms (ESetA t e1 e2 e3) = [(TUnit, t),(gt e2, TArray (gt e3)), (gt e1,TInt)] ++ ms e1 ++ ms e2
+ms (ESetA t e1 e2 e3) = [(TUnit, t),(gt e1, TArray (gt e3)), (gt e2,TInt)] ++ ms e1 ++ ms e2
 ms (EPrintI32 t e1) = [(TUnit,t),(gt e1,TInt)]
 ms (EPrintF32 t e1) = [(TUnit,t),(gt e1,TFloat)]
 

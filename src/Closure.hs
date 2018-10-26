@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -fwarn-incomplete-patterns #-}
 
-module Closure where
+module Closure (clsTrans, Exp(..), Var(..), FunDef(..), Prog(..), getTypeOfExp) where
 
 import           Control.Monad.State
 import           Data.List
@@ -47,6 +47,26 @@ instance Show Exp where
   show (EPrintI32 t e1) = "(print_i32 " ++ show e1 ++ "):" ++ show t
   show (EPrintF32 t e1) = "(print_f32 " ++ show e1 ++ "):" ++ show t
 
+getTypeOfExp = gt
+
+-- Get Type of Exp
+gt :: Exp -> P.Type
+gt (EInt _ _) = P.TInt
+gt (EFloat _ _) = P.TFloat
+gt (EOp t _ _ _) = t
+gt (EIf t _ _ _) = t
+gt (ELet t _ _ _) = t
+gt (EDTuple t _ _ _) = t
+gt (ERec t _ _ _ _) = t
+gt (EVar t _) = t
+gt (EAppCls t _ _) = t
+gt (ETuple t _) = t
+gt (ESeq t _ _) = t
+gt (EMakeA t _) = t
+gt (EGetA t _ _) = t
+gt (ESetA t _ _ _) = t
+gt (EPrintI32 t _) = t
+gt (EPrintF32 t _) = t
 
 
 data FunDef = FunDef P.Type Var [Var] Exp deriving (Eq)
@@ -74,6 +94,7 @@ clsTrans' (P.EFloat t f) = return (EFloat t f)
 clsTrans' (P.EInt t i) = return (EInt t i)
 clsTrans' (P.EBool t b) = if b then return (EInt P.TInt 1) else return (EInt P.TInt 0)
 clsTrans' (P.EPrintI32 t e) = EPrintI32 t <$> clsTrans' e
+clsTrans' (P.EPrintF32 t e) = EPrintF32 t <$> clsTrans' e
 clsTrans' (P.EOp t o e1 e2) = EOp t o <$> clsTrans' e1 <*> clsTrans' e2
 clsTrans' (P.EIf t e1 e2 e3) = EIf t <$> clsTrans' e1 <*> clsTrans' e2 <*> clsTrans' e3
 clsTrans' (P.ELet t (P.Var t2 x) e1 e2) = ELet t (Var t2 x) <$> clsTrans' e1 <*> clsTrans' e2
@@ -96,6 +117,7 @@ clsTrans' (P.ERec te2 x@(P.Var (P.TFun targ tres) xstr) ys e1 e2) = do
            (ELet (T.getTypeOfExp e1) (v2v x) (ETuple clsType (map v2ev (v2l x fundefType:map v2v fvs))) e1'))
   addFunDef fd
   return $ ELet (T.getTypeOfExp e2) (v2v x) (ETuple clsType (map v2ev (v2l x fundefType:map v2v fvs))) e2'
+clsTrans' _ = undefined
 
 v2ev :: Var -> Exp
 v2ev (Var t s) = EVar t (Var t s)

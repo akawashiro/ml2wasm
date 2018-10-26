@@ -9,17 +9,17 @@ import Control.Monad
 import Alpha
 import Closure
 import UnusedVar
--- import WasmGen
+import WasmGen
 
 printWasmCode :: String -> IO ()
 printWasmCode input = do
   let parsed = stringToExp input
-  putStrLn (f parsed)
-  -- let alphad = exprToAlphaExpr `liftM` parsed
-  -- let closured = clsTrans `liftM` alphad
-  -- let unused = removeUnused `liftM` closured
-  -- let wasm = prog2Wasm `liftM` unused
-  -- putStrLn (f wasm)
+  let typed = parsed >>= typingExp
+  let alphad = exprToAlphaExpr <$> typed
+  let closured = clsTrans `liftM` alphad
+  let unused = removeUnused `liftM` closured
+  let wasm = prog2Wasm `liftM` unused
+  putStrLn (f wasm)
     where f a = either show show a
 
 
@@ -36,8 +36,8 @@ showDetails input = do
   putStrLn $ "After closure translation = \n" ++ f closured ++ "\n"
   let unused = removeUnused `liftM` closured
   putStrLn $ "After unused variable translation = \n" ++ f unused ++ "\n"
-  -- let wasm = prog2Wasm `liftM` unused
-  -- putStrLn $ "Generated wasm code = \n" ++ f wasm ++ "\n"
+  let wasm = prog2Wasm `liftM` unused
+  putStrLn $ "Generated wasm code = \n" ++ f wasm ++ "\n"
     where f a = either show show a
 
 compile :: Flag "d" '["debug"] "" "debug option" Bool
