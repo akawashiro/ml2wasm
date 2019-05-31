@@ -2,7 +2,7 @@
 module Main where
 
 import Control.Monad.Trans
-import Options.Declarative
+import System.Environment
 import Parse
 import Type
 import Control.Monad
@@ -46,13 +46,15 @@ showDetails input = do
   putStrLn $ "Generated wasm code = \n" ++ f wasm ++ "\n"
     where f a = either show show a
 
-compile :: Flag "d" '["debug"] "" "debug option" Bool
-        -> Arg "Sorce file" String
-        -> Cmd "MiniML compiler" ()
-compile debug source = do
-  let f | get debug = readFile (get source) >>= showDetails
-        | otherwise = readFile (get source) >>= printWasmCode
-  liftIO f
+-- compile :: Flag "d" '["debug"] "" "debug option" Bool
+--         -> Arg "Sorce file" String
+--         -> Cmd "MiniML compiler" ()
+-- compile debug source = do
+--   let f | get debug = readFile (get source) >>= showDetails
+--         | otherwise = readFile (get source) >>= printWasmCode
+--   liftIO f
 
 main :: IO ()
-main = run_ compile
+main = do
+  fs <- getArgs
+  readFile (head fs) >>= showDetails

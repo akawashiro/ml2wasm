@@ -18,7 +18,6 @@ library
                      , containers
                      , transformers
                      , either
-                     , optparse-declarative
   default-language:    Haskell2010
 
 executable ml2wasm
@@ -27,7 +26,6 @@ executable ml2wasm
   ghc-options:         -threaded -rtsopts -with-rtsopts=-N
   build-depends:       base
                      , ml2wasm
-                     , optparse-declarative
                      , mtl
   default-language:    Haskell2010
 
