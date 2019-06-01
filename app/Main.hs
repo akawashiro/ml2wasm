@@ -46,14 +46,6 @@ showDetails input = do
   putStrLn $ "Generated wasm code = \n" ++ f wasm ++ "\n"
     where f a = either show show a
 
--- compile :: Flag "d" '["debug"] "" "debug option" Bool
---         -> Arg "Sorce file" String
---         -> Cmd "MiniML compiler" ()
--- compile debug source = do
---   let f | get debug = readFile (get source) >>= showDetails
---         | otherwise = readFile (get source) >>= printWasmCode
---   liftIO f
-
 main :: IO ()
 main = do
   fs <- getArgs

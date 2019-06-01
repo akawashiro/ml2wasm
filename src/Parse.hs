@@ -167,11 +167,11 @@ parseExp = do
   (kwSeqSymbol >> ESeq TUnit e1 <$> parseExp) <|> return e1
 
 parseExpUni :: Parser Exp
-parseExpUni = parseExpIf <|>
+parseExpUni = try parseExpIf <|>
            try parseExpLet <|>
            try parseExpDTuple <|>
-           parseExpRec <|>
-           parseExpLt
+           try parseExpRec <|>
+           try parseExpLt
 
 parseExpIf :: Parser Exp
 parseExpIf = do kwIf; e1<-parseExp; kwThen; e2<-parseExp; kwElse; EIf TUnit e1 e2 <$> parseExp;
