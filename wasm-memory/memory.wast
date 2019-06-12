@@ -1,13 +1,14 @@
 (module
   (memory 1000)
-  (global $HEAD_SIZE (export "HEAD_SIZE") i32 (i32.const 9))
+  (global $HEAD_SIZE (export "HEAD_SIZE") i32 (i32.const 12))
   (global $FLAG_NOT_USED (export "FLAG_NOT_USE") i32 (i32.const 0))
   (global $FLAG_USED (export "FLAG_USE") i32 (i32.const 1))
   (global $FLAG_NOT_END (export "FLAG_NOT_END") i32 (i32.const 0))
   (global $FLAG_END (export "FLAG_END") i32 (i32.const 2))
+  (global $GC_HEAD_SIZE (export "HEAD_SIZE") i32 (i32.const 8))
 
   (func $get_flag (param $here i32) (result i32)
-        (i32.load8_u (i32.add (i32.const 8) (get_local $here))))
+        (i32.load (i32.add (i32.const 8) (get_local $here))))
 
   (func $get_next (param $here i32) (result i32)
         (i32.load (get_local $here)))
@@ -19,19 +20,19 @@
         (local $flag_here i32)
         (set_local $flag_here (call $get_flag (get_local $here)))
         (set_local $flag_here (i32.and (get_local $flag_here) (get_global $FLAG_END)))
-        (i32.store8 (i32.add (get_local $here) (i32.const 8)) (get_local $flag_here)))
+        (i32.store (i32.add (get_local $here) (i32.const 8)) (get_local $flag_here)))
 
   (func $set_used (param $here i32)
         (local $flag_here i32)
         (set_local $flag_here (call $get_flag (get_local $here)))
         (set_local $flag_here (i32.or (get_local $flag_here) (get_global $FLAG_USED)))
-        (i32.store8 (i32.add (get_local $here) (i32.const 8)) (get_local $flag_here)))
+        (i32.store (i32.add (get_local $here) (i32.const 8)) (get_local $flag_here)))
 
   (func $set_not_end (param $here i32)
         (local $flag_here i32)
         (set_local $flag_here (call $get_flag (get_local $here)))
         (set_local $flag_here (i32.and (get_local $flag_here) (get_global $FLAG_USED)))
-        (i32.store8 (i32.add (get_local $here) (i32.const 8)) (get_local $flag_here)))
+        (i32.store (i32.add (get_local $here) (i32.const 8)) (get_local $flag_here)))
 
   (func $is_used (param $here i32) (result i32)
         (local $flag_here i32)
@@ -100,6 +101,31 @@
         (i32.store (i32.const 4) (i32.const 0))
         (i32.store8 (i32.const 8) 
                     (i32.add (get_global $FLAG_END) (get_global $FLAG_NOT_USED))))
+
+  (func $gc_get_flag (param $here i32) (result i32)
+        (i32.load (i32.add (i32.const 4) (get_local $here))))
+
+  (func $gc_set_flag (param $here i32) (param $flag i32)
+        (i32.store (i32.add (i32.const 4) (get_local $here)) (get_local $flag)))
+
+  (; "rc" means reference count ;)
+  (func $gc_get_rc (param $here i32) (result i32)
+        (i32.load (get_local $here)))
+
+  (func $gc_increase_rc (param $here i32)
+        (i32.store (get_local $here) 
+                   (i32.add (i32.const 1) (call $gc_get_rc (get_local $here))))
+
+  (func $gc_decrease_rc
+        (i32.store (get_local $here) 
+                   (i32.sub (call $gc_get_rc (get_local $here)) (i32.const 1)))
+
+
+  (; (func $gc_malloc (param $size i32) (result i32) ;)
+        (; ) ;)
+
+  (func $gc_free
+        )
 
   (func (export "main") (result i32)
         (call $malloc_initalize)
