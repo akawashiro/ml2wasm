@@ -20,40 +20,46 @@
 (import "host" "print" (func $print_i32 (param i32)))
   (memory 1000)
   (global $HEAD_SIZE (export "HEAD_SIZE") i32 (i32.const 12))
+  (global $OFFSET_NEXT (export "OFFSET_NEXT") i32 (i32.const 0))
+  (global $OFFSET_SIZE (export "OFFSET_SIZE") i32 (i32.const 4))
+  (global $OFFSET_FLAG (export "OFFSET_FLAG") i32 (i32.const 8))
   (global $FLAG_NOT_USED (export "FLAG_NOT_USE") i32 (i32.const 0))
   (global $FLAG_USED (export "FLAG_USE") i32 (i32.const 1))
   (global $FLAG_NOT_END (export "FLAG_NOT_END") i32 (i32.const 0))
   (global $FLAG_END (export "FLAG_END") i32 (i32.const 2))
   (global $GC_HEAD_SIZE (export "GC_HEAD_SIZE") i32 (i32.const 12))
+  (global $GC_OFFSET_SIZE (export "GC_OFFSET_SIZE") i32 (i32.const 0))
+  (global $GC_OFFSET_FLAG (export "GC_OFFSET_FLAG") i32 (i32.const 4))
+  (global $GC_OFFSET_RC (export "GC_OFFSET_RC") i32 (i32.const 8))
   (global $GC_FLAG_VALUE (export "GC_FLAG_VALUE") i32 (i32.const 1))
   (global $GC_FLAG_SEARCHED (export "GC_FLAG_SEARCHED") i32 (i32.const 2))
 
   (func $get_flag (param $here i32) (result i32)
-        (i32.load (i32.add (i32.const 8) (get_local $here))))
+        (i32.load (i32.add (get_global $OFFSET_FLAG) (get_local $here))))
 
   (func $get_next (param $here i32) (result i32)
         (i32.load (get_local $here)))
 
   (func $get_size (param $here i32) (result i32)
-        (i32.load (i32.add (i32.const 4) (get_local $here))))
+        (i32.load (i32.add (get_global $OFFSET_SIZE) (get_local $here))))
 
   (func $set_not_used (param $here i32)
         (local $flag_here i32)
         (set_local $flag_here (call $get_flag (get_local $here)))
         (set_local $flag_here (i32.and (get_local $flag_here) (get_global $FLAG_END)))
-        (i32.store (i32.add (get_local $here) (i32.const 8)) (get_local $flag_here)))
+        (i32.store (i32.add (get_local $here) (get_global $OFFSET_FLAG)) (get_local $flag_here)))
 
   (func $set_used (param $here i32)
         (local $flag_here i32)
         (set_local $flag_here (call $get_flag (get_local $here)))
         (set_local $flag_here (i32.or (get_local $flag_here) (get_global $FLAG_USED)))
-        (i32.store (i32.add (get_local $here) (i32.const 8)) (get_local $flag_here)))
+        (i32.store (i32.add (get_local $here) (get_global $OFFSET_FLAG)) (get_local $flag_here)))
 
   (func $set_not_end (param $here i32)
         (local $flag_here i32)
         (set_local $flag_here (call $get_flag (get_local $here)))
         (set_local $flag_here (i32.and (get_local $flag_here) (get_global $FLAG_USED)))
-        (i32.store (i32.add (get_local $here) (i32.const 8)) (get_local $flag_here)))
+        (i32.store (i32.add (get_local $here) (get_global $OFFSET_FLAG)) (get_local $flag_here)))
 
   (func $is_used (param $here i32) (result i32)
         (local $flag_here i32)
@@ -77,8 +83,8 @@
 
   (func $make_new_block (param $here i32) (param $size i32) (result i32)
         (i32.store (get_local $here) (i32.add (get_local $here) (i32.add (get_global $HEAD_SIZE) (get_local $size))))
-        (i32.store (i32.add (i32.const 4) (get_local $here)) (get_local $size))
-        (i32.store8 (i32.add (get_local $here) (i32.const 8)) (i32.add (get_global $FLAG_END) (get_global $FLAG_USED)))
+        (i32.store (i32.add (get_global $OFFSET_SIZE) (get_local $here)) (get_local $size))
+        (i32.store (i32.add (get_local $here) (get_global $OFFSET_FLAG)) (i32.add (get_global $FLAG_END) (get_global $FLAG_USED)))
         (get_local $here))
 
   (; Returned value does not include HEAD_SIZE ;)
@@ -110,29 +116,29 @@
         (call $set_not_used (i32.sub (get_local $adress) (get_global $HEAD_SIZE))))
 
   (func $malloc_initalize
-        (i32.store (i32.const 0) (get_global $HEAD_SIZE))
-        (i32.store (i32.const 4) (i32.const 0))
-        (i32.store (i32.const 8) 
+        (i32.store (get_global $OFFSET_NEXT) (get_global $HEAD_SIZE))
+        (i32.store (get_global $OFFSET_SIZE) (i32.const 0))
+        (i32.store (get_global $OFFSET_FLAG) 
                     (i32.add (get_global $FLAG_END) (get_global $FLAG_NOT_USED))))
 
   (; In functions with the prefix of "gc_",  ;)
   (; adresses point the head of gc block not the head of malloc block. ;)
 
   (func $gc_initalize
-        (i32.store (i32.const 0) (i32.add (get_global $GC_HEAD_SIZE) (get_global $HEAD_SIZE)))
-        (i32.store (i32.const 4) (i32.const 0))
-        (i32.store (i32.const 8) 
+        (i32.store (get_global $OFFSET_NEXT) (i32.add (get_global $GC_HEAD_SIZE) (get_global $HEAD_SIZE)))
+        (i32.store (get_global $OFFSET_SIZE) (i32.const 0))
+        (i32.store (get_global $OFFSET_FLAG) 
                     (i32.add (get_global $FLAG_END) (get_global $FLAG_NOT_USED)))
-        (i32.store (i32.add (i32.const 8) (get_global $HEAD_SIZE)) (i32.const 1)))
+        (i32.store (i32.add (get_global $GC_OFFSET_RC) (get_global $HEAD_SIZE)) (i32.const 1)))
 
   (func $gc_get_size (param $here i32) (result i32)
         (i32.load (get_local $here)))
 
   (func $gc_get_flag (param $here i32) (result i32)
-        (i32.load (i32.add (i32.const 4) (get_local $here))))
+        (i32.load (i32.add (get_global $GC_OFFSET_FLAG) (get_local $here))))
 
   (func $gc_set_flag (param $here i32) (param $flag i32)
-        (i32.store (i32.add (i32.const 4) (get_local $here)) (get_local $flag)))
+        (i32.store (i32.add (get_global $GC_OFFSET_FLAG) (get_local $here)) (get_local $flag)))
 
   (func $gc_is_value (param $here i32) (result i32)
         (local $flag_here i32)
@@ -164,12 +170,12 @@
 
   (; "rc" means reference count ;)
   (func $gc_get_rc (param $here i32) (result i32)
-        (i32.load (i32.add (i32.const 8) (get_local $here))))
+        (i32.load (i32.add (get_global $GC_OFFSET_RC) (get_local $here))))
 
   (; ``here'' does not contain GC_HEAD_SIZE because this function is called from outside. ;)
   (func $gc_increase_rc (param $here i32)
         (set_local $here (i32.sub (get_local $here) (get_global $GC_HEAD_SIZE)))
-        (i32.store (i32.add (i32.const 8) (get_local $here))
+        (i32.store (i32.add (get_global $GC_OFFSET_RC) (get_local $here))
                    (i32.add (i32.const 1) (call $gc_get_rc (get_local $here)))))
 
   (func $gc_decrease_rc_dfs (param $here i32)
@@ -181,7 +187,7 @@
 
         (set_local $size_here (call $gc_get_size (get_local $here)))
         (call $gc_set_searched (get_local $here))
-        (i32.store (i32.add (i32.const 8) (get_local $here))
+        (i32.store (i32.add (get_global $GC_OFFSET_RC) (get_local $here))
                    (i32.sub (call $gc_get_rc (get_local $here)) (i32.const 1)))
         (if (call $gc_is_value (get_local $here))
           (then
@@ -228,7 +234,7 @@
         (set_local $s (i32.add (get_local $size) (get_global $GC_HEAD_SIZE)))
         (set_local $p (call $malloc (get_local $s)))
         (i32.store (get_local $p) (get_local $size))
-        (i32.store (i32.add (get_local $p) (i32.const 4)) (get_local $is_value))
+        (i32.store (i32.add (get_local $p) (get_global $GC_OFFSET_FLAG)) (get_local $is_value))
         (i32.add (get_global $GC_HEAD_SIZE) (get_local $p)))
 
   (; In this function, ``here'' is an adress for malloc block ;)
