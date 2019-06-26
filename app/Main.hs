@@ -10,6 +10,25 @@ import Alpha
 import Closure
 import UnusedVar
 import WasmGen
+import Options.Applicative
+import Data.Semigroup ((<>))
+
+data Option = Option
+  { input :: String,
+    memory :: String,
+   verbose :: Bool  }
+
+optionParser :: Parser Option
+optionParser = Option
+  <$> strArgument (metavar "FILE")
+  <*> strOption
+    (  long "memory"
+    <> metavar "PATH"
+    <> help "Path to the wast file of memory allocater")
+  <*> switch
+    (  long "verbose"
+    <> short 'v'
+    <> help "Output debug information" )
 
 printWasmCode :: String -> IO ()
 printWasmCode input = do
@@ -21,7 +40,6 @@ printWasmCode input = do
   let wasm = prog2Wasm `liftM` unused
   putStrLn (f wasm)
     where f a = either show show a
-
 
 showDetails :: String -> IO ()
 showDetails input = do
@@ -46,7 +64,15 @@ showDetails input = do
   putStrLn $ "Generated wasm code = \n" ++ f wasm ++ "\n"
     where f a = either show show a
 
+main' :: Option -> IO ()
+main' o = do
+  f <- readFile (input o)
+  if verbose o then showDetails f else printWasmCode f
+
 main :: IO ()
-main = do
-  fs <- getArgs
-  readFile (head fs) >>= showDetails
+main = main' =<< execParser opts
+  where
+    opts = info (optionParser <**> helper)
+      ( fullDesc
+     <> progDesc "Compile ML to WASM"
+     <> header "ml2wasm - a toy compiler from MiniML to WASM." )
