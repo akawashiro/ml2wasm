@@ -16,9 +16,12 @@
 (; |-------------------------------+-------+-----------------+----------|           ;)
 
 (module
-(import "host" "print" (func $print_f32 (param f32)))
-(import "host" "print" (func $print_i32 (param i32)))
+  (import "host" "print" (func $print_f32 (param f32)))
+  (import "host" "print" (func $print_i32 (param i32)))
   (memory 1000)
+
+  (; BEGIN DEFNITION OF GLOBAL VARIABLES ;)
+
   (global $HEAD_SIZE (export "HEAD_SIZE") i32 (i32.const 12))
   (global $OFFSET_NEXT (export "OFFSET_NEXT") i32 (i32.const 0))
   (global $OFFSET_SIZE (export "OFFSET_SIZE") i32 (i32.const 4))
@@ -33,6 +36,10 @@
   (global $GC_OFFSET_RC (export "GC_OFFSET_RC") i32 (i32.const 8))
   (global $GC_FLAG_VALUE (export "GC_FLAG_VALUE") i32 (i32.const 1))
   (global $GC_FLAG_SEARCHED (export "GC_FLAG_SEARCHED") i32 (i32.const 2))
+
+  (; END DEFNITION OF GLOBAL VARIABLES ;)
+
+  (; BEGIN DEFNITION OF MEMORY FUNCTIONS ;)
 
   (func $get_flag (param $here i32) (result i32)
         (i32.load (i32.add (get_global $OFFSET_FLAG) (get_local $here))))
@@ -253,14 +260,18 @@
   (func $gc_free
         (call $gc_free_body (i32.const 0)))
 
+  (; END DEFNITION OF MEMORY FUNCTIONS ;)
+
   (func (export "main") (result i32)
-        (local $p i32)
+        (local $p1 i32)
+        (local $p2 i32)
         (call $gc_initalize)
         (; (call $malloc (i32.const 20)))) ;)
-        (set_local $p (call $gc_malloc (i32.const 10) (i32.const 1)))
-        (; (call $gc_increase_rc (get_local $p)) ;)
-        (call $gc_increase_rc (get_local $p))
-        (call $gc_decrease_rc (get_local $p))
+        (set_local $p1 (call $gc_malloc (i32.const 10) (i32.const 1)))
+        (set_local $p2 (call $gc_malloc (i32.const 10) (i32.const 1)))
+        (call $gc_increase_rc (get_local $p1))
+        (call $gc_decrease_rc (get_local $p1))
+        (call $gc_increase_rc (get_local $p2))
         (call $gc_free)
         (; (drop) ;)
         (call $gc_malloc (i32.const 10) (i32.const 1))))
