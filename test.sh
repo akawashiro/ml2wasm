@@ -2,7 +2,7 @@
 
 stack build || exit
 
-for f in arith
+for f in add 
 do
     stack exec ml2wasm -- ./ml-examples/$f.ml --memory wasm-memory/memory.wast -v
     stack exec ml2wasm -- ./ml-examples/$f.ml --memory wasm-memory/memory.wast > $f.wast

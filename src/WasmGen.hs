@@ -80,9 +80,15 @@ wasmToString (Wasm ty fds is) memoryFile = do
     let fundefs = intercalate "\n" (map show fds) ++ "\n"
     let elem = "(elem (i32.const 0) " ++ unwords (map (\(Func fn _ _ _) -> "$" ++ fn) fds) ++ ")\n"
     let mainPrefix = "(func (export \"main\") (result " ++ printType ty ++ ")\n"
-    let main = intercalate "\n" (map show is)
+    let mainLocal = intercalate "\n" (map show (takeWhile isLocal is)) ++ "\n"
+    let gcInit = "(call $gc_initalize)\n"
+    let mainBody = intercalate "\n" (map show (dropWhile isLocal is))
     let mainSuffix = "))"
-    return $ prefix ++ memoryGlobalVariables ++ memoryFunctions ++ table ++ fundefs ++ elem ++ mainPrefix ++ main ++ mainSuffix
+    return $ prefix ++ memoryGlobalVariables ++ memoryFunctions ++ table ++ fundefs ++ elem ++ mainPrefix ++ mainLocal ++ gcInit ++ mainBody ++ mainSuffix
+    where
+      isLocal :: Inst -> Bool
+      isLocal (Local _ _) = True
+      isLocal _ = False
 
 printType :: P.Type -> String
 printType P.TFloat = "f32"

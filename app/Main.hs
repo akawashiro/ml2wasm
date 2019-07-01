@@ -43,8 +43,8 @@ compile input memoryFile = do
   where
     f = either putStrLn (\x -> wasmToString x memoryFile >>= putStr)
 
-showDetails :: String -> FilePath -> IO ()
-showDetails input memoryFile = do
+compileWithDebugInfo :: String -> FilePath -> IO ()
+compileWithDebugInfo input memoryFile = do
   putStr $ "Input = \n" ++ input
 
   let parsed = stringToExp input
@@ -68,12 +68,12 @@ showDetails input memoryFile = do
   
   where 
     f a = either show show a
-    g = either putStrLn (\x -> wasmToString x memoryFile >>= putStr)
+    g = either putStrLn (\x -> wasmToString x memoryFile >>= putStrLn)
 
 main' :: Option -> IO ()
 main' o = do
   f <- readFile (input o)
-  if verbose o then showDetails f (memory o) else compile f (memory o)
+  if verbose o then compileWithDebugInfo f (memory o) else compile f (memory o)
 
 main :: IO ()
 main = main' =<< execParser opts
