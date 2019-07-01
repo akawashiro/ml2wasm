@@ -126,7 +126,7 @@ putLocal t s = do
   d <- get
   if Local t ("$"++s) `elem` localVariables d
   then return ()
-  else put d {localVariables = Local t ("$"++s):localVariables d}
+  else put d {localVariables = Local P.TInt ("$"++s):localVariables d}
 
 getLabelIndex :: C.Var -> GenM Int
 getLabelIndex l = do
