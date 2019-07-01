@@ -33,6 +33,9 @@ data Inst = I32Const Int |
             CallIndirect P.Type |
             Table Int |
             Func String P.Type [C.Var] [Inst] |
+            GCMalloc Int Bool |
+            GCIncreaseRC Int |
+            GCDecreaseRC Int |
             PrintInt |
             PrintFloat
             deriving (Eq)
@@ -66,6 +69,7 @@ instance Show Inst where
     where sargs = concatMap f args
           f (C.Var t s) = "(param $" ++ s ++ " " ++ printType t ++ ") "
           f (C.Label t s) = "(param $" ++ s ++ " " ++ printType t ++ ") "
+  show (GCMalloc s v) = "(call $gc_malloc " ++ "(i32.const " ++ show s ++ ") (i32.const " ++ (if v then "1" else "0") ++ ")" ++ ")"
   show PrintInt = "(call $print_i32)"
   show PrintFloat = "(call $print_f32)"
 
@@ -137,7 +141,10 @@ exp2Wasm (C.EIf t e1 e2 e3) = do
   return [IfThenElse t is1 is2 is3]
 exp2Wasm (C.EInt _ i) = return [I32Const i]
 exp2Wasm (C.EFloat _ f) = return [F32Const f]
-exp2Wasm (C.EVar _ (C.Var _ v)) = return [GetLocal ("$"++v)]
+exp2Wasm (C.EVar t (C.Var _ v)) = 
+  return [GetLocal ("$"++v), load]
+  where
+    load = if t == P.TFloat then F32Load else I32Load
 exp2Wasm (C.EVar _ (C.Label t l)) = do
   i <- getLabelIndex (C.Label t l)
   return [I32Const i]
@@ -159,7 +166,17 @@ exp2Wasm (C.ELet _ (C.Var t v) e1 e2) = do
   putLocal t v
   is1 <- exp2Wasm e1
   is2 <- exp2Wasm e2
-  return $ is1 ++ [SetLocal ("$"++v)] ++ is2
+  return $ [GCMalloc 4 (isValue t), SetLocal ("$"++v), GetLocal ("$"++v)] ++ is1 ++ [store t] ++ is2
+  where
+    isValue :: P.Type -> Bool
+    isValue t = case t of
+      P.TInt -> True
+      P.TFloat -> True
+      P.TFun _ _ -> True
+      _ -> False
+    store :: P.Type -> Inst
+    store t = if t == P.TFloat then F32Store else I32Store
+  -- return $ is1 ++ [SetLocal ("$"++v)] ++ is2
 exp2Wasm (C.ETuple _ es) = do
   let setTupleAddr = [I32Const 0, I32Load, I32Const 4, I32Add]
   let prefix = [I32Const 0,I32Const 0,I32Load,I32Const 4,I32Add,I32Store, I32Const 0, I32Load]
