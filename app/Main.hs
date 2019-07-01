@@ -10,6 +10,7 @@ import Alpha
 import Closure
 import UnusedVar
 import WasmGen
+import Link
 import Options.Applicative
 import Data.Semigroup ((<>))
 
@@ -30,19 +31,20 @@ optionParser = Option
     <> short 'v'
     <> help "Output debug information" )
 
-printWasmCode :: String -> IO ()
-printWasmCode input = do
+compile :: String -> FilePath -> IO ()
+compile input memoryFile = do
   let parsed = stringToExp input
   let alphad = exprToAlphaExpr <$> parsed
   let typed = alphad >>= typingExp
   let closured = clsTrans `liftM` typed
   let unused = removeUnused `liftM` closured
   let wasm = prog2Wasm `liftM` unused
-  putStrLn (f wasm)
-    where f a = either show show a
+  f wasm
+  where
+    f = either putStrLn (\x -> wasmToString x memoryFile >>= putStr)
 
-showDetails :: String -> IO ()
-showDetails input = do
+showDetails :: String -> FilePath -> IO ()
+showDetails input memoryFile = do
   putStr $ "Input = \n" ++ input
 
   let parsed = stringToExp input
@@ -61,13 +63,17 @@ showDetails input = do
   putStrLn $ "After unused variable translation = \n" ++ f unused ++ "\n"
 
   let wasm = prog2Wasm `liftM` unused
-  putStrLn $ "Generated wasm code = \n" ++ f wasm ++ "\n"
-    where f a = either show show a
+  putStrLn $ "Generated wasm code = \n"
+  g wasm
+  
+  where 
+    f a = either show show a
+    g = either putStrLn (\x -> wasmToString x memoryFile >>= putStr)
 
 main' :: Option -> IO ()
 main' o = do
   f <- readFile (input o)
-  if verbose o then showDetails f else printWasmCode f
+  if verbose o then showDetails f (memory o) else compile f (memory o)
 
 main :: IO ()
 main = main' =<< execParser opts

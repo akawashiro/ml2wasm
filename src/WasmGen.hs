@@ -8,6 +8,7 @@ import           Data.List
 import           Data.Maybe
 import qualified Parse               as P
 import qualified Type                as T
+import qualified Link                as L
 
 data Inst = I32Const Int |
             F32Const Float |
@@ -70,16 +71,18 @@ instance Show Inst where
 
 -- Wasm FunDefs Main
 data Wasm = Wasm P.Type [Inst] [Inst]
-instance Show Wasm where
-  show (Wasm ty fds is) =
-    let prefix = "(module\n(import \"host\" \"print\" (func $print_f32 (param f32)))\n(import \"host\" \"print\" (func $print_i32 (param i32)))\n(memory 10000)\n" in
-    let table = "(table " ++ show (length fds) ++ " anyfunc)\n" in
-    let fundefs = intercalate "\n" (map show fds) ++ "\n" in
-    let elem = "(elem (i32.const 0) " ++ unwords (map (\(Func fn _ _ _) -> "$" ++ fn) fds) ++ ")\n" in
-    let mainPrefix = "(func (export \"main\") (result " ++ printType ty ++ ")\n" in
-    let main = intercalate "\n" (map show is) in
-    let mainSuffix = "))" in
-    prefix ++ table ++ fundefs ++ elem ++ mainPrefix ++ main ++ mainSuffix
+
+wasmToString :: Wasm -> String -> IO String
+wasmToString (Wasm ty fds is) memoryFile = do
+    (memoryGlobalVariables, memoryFunctions) <- L.parseMemoryFile memoryFile
+    let prefix = "(module\n(import \"host\" \"print\" (func $print_f32 (param f32)))\n(import \"host\" \"print\" (func $print_i32 (param i32)))\n(memory 10000)\n"
+    let table = "(table " ++ show (length fds) ++ " anyfunc)\n"
+    let fundefs = intercalate "\n" (map show fds) ++ "\n"
+    let elem = "(elem (i32.const 0) " ++ unwords (map (\(Func fn _ _ _) -> "$" ++ fn) fds) ++ ")\n"
+    let mainPrefix = "(func (export \"main\") (result " ++ printType ty ++ ")\n"
+    let main = intercalate "\n" (map show is)
+    let mainSuffix = "))"
+    return $ prefix ++ memoryGlobalVariables ++ memoryFunctions ++ table ++ fundefs ++ elem ++ mainPrefix ++ main ++ mainSuffix
 
 printType :: P.Type -> String
 printType P.TFloat = "f32"

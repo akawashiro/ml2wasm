@@ -2,10 +2,10 @@
 
 stack build || exit
 
-for f in mandelbrot
+for f in arith
 do
-    stack exec ml2wasm -- -d ./ml-examples/$f.ml
-    stack exec ml2wasm -- ./ml-examples/$f.ml > $f.wast
+    stack exec ml2wasm -- ./ml-examples/$f.ml --memory wasm-memory/memory.wast -v
+    stack exec ml2wasm -- ./ml-examples/$f.ml --memory wasm-memory/memory.wast > $f.wast
     
     wat2wasm $f.wast
     echo "The result of execution ="
