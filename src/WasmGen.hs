@@ -178,12 +178,23 @@ exp2Wasm (C.ELet _ (C.Var t v) e1 e2) = do
     store t = if t == P.TFloat then F32Store else I32Store
   -- return $ is1 ++ [SetLocal ("$"++v)] ++ is2
 exp2Wasm (C.ETuple _ es) = do
-  let setTupleAddr = [I32Const 0, I32Load, I32Const 4, I32Add]
-  let prefix = [I32Const 0,I32Const 0,I32Load,I32Const 4,I32Add,I32Store, I32Const 0, I32Load]
-  let suffix = [I32Store]
-  is <- concat <$> mapM (\x -> do {y <- exp2Wasm x; return (prefix ++ y ++ [suffixInst x])}) es
-  return $ setTupleAddr ++ is
-    where suffixInst e = if C.getTypeOfExp e == P.TFloat then F32Store else I32Store
+  let reserve = [GCMalloc (4 * length es) False]
+  is <- storeTupleBody
+  return $ reserve ++ dupStackTop (1 + length es) ++ is
+  where
+    isValue :: P.Type -> Bool
+    isValue t = case t of
+      P.TInt -> True
+      P.TFloat -> True
+      P.TFun _ _ -> True
+      _ -> False
+    store e = if C.getTypeOfExp e == P.TFloat then F32Store else I32Store
+    dupStackTop n = [SetLocal stackTopVar] ++ replicate n (GetLocal stackTopVar)
+    storeTupleBody = concat <$> mapM storeTupleBodyElement (zip es [0..])
+    storeTupleBodyElement (e,i) = do 
+      let storeToTuple is = [I32Const (4*i), I32Add] ++ is ++ [I32Store]
+      y <- exp2Wasm e
+      return $ storeToTuple ([GCMalloc 4 (isValue (C.getTypeOfExp e))] ++ dupStackTop 2 ++ y ++ [store e])
 exp2Wasm (C.EDTuple _ vs e1 e2) = do
   set <- concat <$> mapM f (zip vs (map (*4) [0..]))
   is1 <- exp2Wasm e1
