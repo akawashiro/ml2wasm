@@ -1,2 +1,1 @@
-let (x,y) = (10,(30,20)) in 
-let (w,z) = y in x
+let (x,y) = (10,20) in print_i32 y; 0

@@ -1,1 +1,2 @@
-print_i32 10; 20
+let x = 10.0 in
+print_f32 x; 0
