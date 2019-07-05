@@ -33,11 +33,12 @@ data Inst = I32Const Int |
             CallIndirect P.Type |
             Table Int |
             Func String P.Type [C.Var] [Inst] |
-            GCMalloc Int Bool |
+            GCMalloc [Inst] Bool |
             GCIncreaseRC Int |
             GCDecreaseRC Int |
             PrintInt |
-            PrintFloat
+            PrintFloat |
+            Comment String
             deriving (Eq)
 instance Show Inst where
   show (I32Const i) = "(i32.const " ++ show i ++ ")"
@@ -64,7 +65,7 @@ instance Show Inst where
           s2 = intercalate "\n" (map show is2)
           s3 = intercalate "\n" (map show is3)
   show (CallIndirect (P.TFun tyargs tyres)) = 
-    "(call_indirect " ++ concatMap (\x -> "(param i32) ") tyargs ++ "(param i32) " ++ "(result i32))"
+    "(call_indirect " ++ concatMap (const "(param i32) ") tyargs ++ "(param i32) " ++ "(result i32))"
     -- Because all values are boxed, their types are i32.
     -- The extra (param i32) is for the function number which corresponds to function pointer.
     -- "(call_indirect " ++ concatMap (\x -> "(param " ++ printType x ++ ") ") tyargs ++ "(param i32) " ++ "(result " ++ printType tyres ++ "))"
@@ -76,9 +77,10 @@ instance Show Inst where
           -- Because all values are boxed, their types are i32.
           -- f (C.Var t s) = "(param $" ++ s ++ " " ++ printType t ++ ") "
           -- f (C.Label t s) = "(param $" ++ s ++ " " ++ printType t ++ ") "
-  show (GCMalloc s v) = "(call $gc_malloc " ++ "(i32.const " ++ show s ++ ") (i32.const " ++ (if v then "1" else "0") ++ ")" ++ ")"
+  show (GCMalloc s v) =  intercalate "\n" (map show s) ++  "\n(i32.const " ++ (if v then "1" else "0") ++ ")\n" ++ "(call $gc_malloc)"
   show PrintInt = "(call $print_i32)"
   show PrintFloat = "(call $print_f32)"
+  show (Comment s) = "(; " ++ s ++ " ;)"
 
 -- Wasm FunDefs Main
 data Wasm = Wasm P.Type [Inst] [Inst]
@@ -140,7 +142,7 @@ getLabelIndex l = do
 
 -- This local variable is mainly used in dup instruction.
 stackTopVar = "$stack_top_var"
-dupStackTop n = [SetLocal stackTopVar] ++ replicate n (GetLocal stackTopVar)
+dupStackTop n = SetLocal stackTopVar : replicate n (GetLocal stackTopVar)
 
 isValue :: P.Type -> Bool
 isValue t = case t of
@@ -153,7 +155,7 @@ isValue t = case t of
 -- ''ist`` returns a row value like an integer or a float value.
 storeRowValue t ist = 
   let i = if t == P.TFloat then F32Store else I32Store in
-  [GCMalloc 4 (isValue t)] ++ dupStackTop 2 ++ ist ++ [i]
+  [GCMalloc [I32Const 4] (isValue t)] ++ dupStackTop 2 ++ ist ++ [i]
 
 loadValue t = if t == P.TFloat then F32Load else I32Load
 
@@ -162,7 +164,7 @@ exp2Wasm (C.EIf t e1 e2 e3) = do
   is1 <- liftM2 (++) (exp2Wasm e1) (return [loadValue $ C.getTypeOfExp e1])
   is2 <- exp2Wasm e2
   is3 <- exp2Wasm e3
-  return [IfThenElse t is1 is2 is3]
+  return [Comment "if", IfThenElse t is1 is2 is3]
 exp2Wasm (C.EInt t i) = return $ storeRowValue t [I32Const i]
 exp2Wasm (C.EFloat t f) = return $ storeRowValue t [F32Const f]
 exp2Wasm (C.EVar t (C.Var _ v)) = 
@@ -188,8 +190,7 @@ exp2Wasm (C.ELet _ (C.Var t v) e1 e2) = do
   putLocal t v
   is1 <- exp2Wasm e1
   is2 <- exp2Wasm e2
-  return $ is1 ++ [SetLocal ("$"++v)] ++ is2
-  -- return $ [GCMalloc 4 (isValue t), SetLocal ("$"++v), GetLocal ("$"++v)] ++ is1 ++ [I32Store] ++ is2
+  return $ Comment "let" : is1 ++ [SetLocal ("$"++v)] ++ is2
   where
     isValue :: P.Type -> Bool
     isValue t = case t of
@@ -197,11 +198,10 @@ exp2Wasm (C.ELet _ (C.Var t v) e1 e2) = do
       P.TFloat -> True
       P.TFun _ _ -> True
       _ -> False
-  -- return $ is1 ++ [SetLocal ("$"++v)] ++ is2
 exp2Wasm (C.ETuple _ es) = do
-  let reserve = [GCMalloc (4 * length es) False]
+  let reserve = [GCMalloc [I32Const (4 * length es)] False]
   is <- storeTupleBody
-  return $ reserve ++ dupStackTop (1 + length es) ++ is
+  return $ Comment "tuple construction": reserve ++ dupStackTop (1 + length es) ++ is
   where
     storeTupleBody = concat <$> mapM storeTupleBodyElement (zip es [0..])
     storeTupleBodyElement (e,i) = do 
@@ -212,7 +212,7 @@ exp2Wasm (C.EDTuple _ vs e1 e2) = do
   set <- concat <$> mapM f (zip vs (map (*4) [0..]))
   is1 <- exp2Wasm e1
   is2 <- exp2Wasm e2
-  return $ is1 ++ [SetLocal stackTopVar] ++ set ++ is2
+  return $ Comment "tuple destruction": is1 ++ [SetLocal stackTopVar] ++ set ++ is2
     where
       f :: (C.Var, Int) -> GenM [Inst]
       f (C.Var t v, offset) = do
@@ -229,22 +229,19 @@ exp2Wasm (C.ESeq _ e1 e2) = do
   return (is1 ++ is2)
 exp2Wasm (C.EMakeA _ e1) = do
   is1 <- exp2Wasm e1
-  let setArrayAddr = [I32Const 0, I32Load, I32Const 4, I32Add]
-  let addLength = [I32Const 0] ++ is1 ++ [I32Const 4, I32Mul, I32Add, I32Store]
-  return (setArrayAddr ++ dupStackTop 2 ++ addLength)
+  -- You must use I32Load because is1 returns a boxed value.
+  return [Comment "Array construction", GCMalloc (is1 ++ [I32Load, I32Const 4, I32Mul]) False]
 exp2Wasm (C.EGetA t e1 e2) = do
   is1 <- exp2Wasm e1
   is2 <- exp2Wasm e2
-  return (is1 ++ is2 ++ [I32Const 4, I32Mul, I32Add, load])
-    where
-      load = if t == P.TFloat then F32Load else I32Load
+  -- Because all values are boxed, we can use I32Load for all values.
+  return $ Comment "Array get": is1 ++ is2 ++ [I32Load, I32Const 4, I32Mul, I32Add, I32Load]
 exp2Wasm (C.ESetA _ e1 e2 e3) = do
   is1 <- exp2Wasm e1
   is2 <- exp2Wasm e2
   is3 <- exp2Wasm e3
-  return (is1 ++ is2 ++ [I32Const 4, I32Mul, I32Add] ++ is3 ++ [store e3])
-    where
-      store e = if C.getTypeOfExp e == P.TFloat then F32Store else I32Store
+  -- Because all values are boxed, we can use I32Store for all values.
+  return $ Comment "Array set": is1 ++ is2 ++ [I32Load, I32Const 4, I32Mul, I32Add] ++ is3 ++ [I32Store]
 exp2Wasm (C.EPrintI32 _ e) = do
   is <- exp2Wasm e
   return (is ++ [I32Load, PrintInt])
