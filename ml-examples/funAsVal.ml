@@ -1,1 +1,4 @@
-let f = fun x -> fun y -> x + y in let g = fun z -> (z 1 2) in g f;;
+let rec f x y = x + y in 
+let rec g z = z 1 2 in 
+let r = g f in
+print_i32 r; r

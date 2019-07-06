@@ -118,6 +118,7 @@
   (func $malloc (param $size i32) (result i32)
         (i32.add (get_global $HEAD_SIZE) (call $malloc_body (i32.const 0) (get_local $size))))
 
+  (; This function may be used as an library function, so ``adress'' do not include HEAD_SIZE ;)
   (; To pass internal functions, we must substract HEAD_SIZE from the given adress ;)
   (func $free (param $adress i32)
         (call $set_not_used (i32.sub (get_local $adress) (get_global $HEAD_SIZE))))
@@ -188,8 +189,9 @@
   (func $gc_decrease_rc_dfs (param $here i32)
         (local $offset i32)
         (local $size_here i32)
-        (call $print_i32 (i32.const 1111111))
+        (; (call $print_i32 (i32.const 1111111)) ;)
 
+        (; When ``here'' is NULL, return immediately ;)
         (if (i32.eq (i32.const 0) (get_local $here))
           (then return))
         (if (call $gc_is_searched (get_local $here))
@@ -199,17 +201,37 @@
         (call $gc_set_searched (get_local $here))
         (i32.store (i32.add (get_global $GC_OFFSET_RC) (get_local $here))
                    (i32.sub (call $gc_get_rc (get_local $here)) (i32.const 1)))
+
+        (; (if (call $gc_is_value (get_local $here)) ;)
+          (; (then return)) ;)
+
+        (; If the RC is 0, release the block ;)
+        (if (i32.eq (call $gc_get_rc (get_local $here)) (i32.const 0))
+          (then (call $free (get_local $here))))
+
+        (; If the RC is not 0, return immediately ;)
+        (if (call $gc_get_rc (get_local $here))
+          (then return))
+
+        (; (if (i32.eq (call $gc_get_rc (get_local $here)) (i32.const 0)) ;)
+          (; (then  ;)
+            (; (if (call $gc_is_value (get_local $here)) ;)
+              (; (then) ;)
+              (; (else ;)
+                (; (call $free (get_local $here)))))) ;)
+
         (if (call $gc_is_value (get_local $here))
           (then
             (nop))
           (else
             (block $exit
                    (loop $loop
-                        (call $print_i32 (get_local $offset))
-                        (call $print_i32 (get_local $size_here))
+                        (; (call $print_i32 (get_local $offset)) ;)
+                        (; (call $print_i32 (get_local $size_here)) ;)
                          (br_if $exit (i32.eq (get_local $offset) (get_local $size_here)))
 
-                         (if (i32.eq (i32.const 0) (i32.load (i32.add (get_global $GC_HEAD_SIZE) (i32.add (get_local $offset) (get_local $here)))))
+                         (; (if (i32.eq (i32.const 0) (i32.load (i32.add (get_global $GC_HEAD_SIZE) (i32.add (get_local $offset) (get_local $here))))) ;)
+                         (if (i32.eq (i32.const 0) (call $gc_get_rc (i32.add (get_local $offset) (get_local $here))))
                            (then)
                            (else
                             (call $gc_decrease_rc_dfs (i32.sub (i32.load (i32.add (get_global $GC_HEAD_SIZE) (i32.add (get_local $offset) (get_local $here)))) (get_global $GC_HEAD_SIZE)))))
@@ -219,8 +241,9 @@
   (func $gc_unset_searched_dfs (param $here i32)
         (local $offset i32)
         (local $size_here i32)
-        (call $print_i32 (i32.const 222222))
+        (; (call $print_i32 (i32.const 222222)) ;)
 
+        (; When ``here'' is NULL, return immediately ;)
         (if (i32.eq (i32.const 0) (get_local $here))
           (then return))
         (if (call $gc_is_searched (get_local $here))
@@ -235,8 +258,8 @@
           (else
             (block $exit
                    (loop $loop
-                        (call $print_i32 (get_local $offset))
-                        (call $print_i32 (get_local $size_here))
+                        (; (call $print_i32 (get_local $offset)) ;)
+                        (; (call $print_i32 (get_local $size_here)) ;)
                          (br_if $exit (i32.eq (get_local $offset) (get_local $size_here)))
                          (if (i32.eq (i32.const 0) (i32.load (i32.add (get_global $GC_HEAD_SIZE) (i32.add (get_local $offset) (get_local $here)))))
                            (then)
@@ -265,7 +288,7 @@
         (i32.add (get_global $GC_HEAD_SIZE) (get_local $p)))
 
   (; In this function, ``here'' is an adress for malloc block ;)
-  (func $gc_free_body (param $here i32)
+  (func $gc_all_free_body (param $here i32)
         (local $next_here i32)
         (local $rc_here i32)
         (set_local $rc_here (call $gc_get_rc (i32.add (get_global $HEAD_SIZE) (get_local $here))))
@@ -275,10 +298,10 @@
         (if (i32.eq (i32.const 0) (call $is_end (get_local $here)))
           (then
             (set_local $next_here (call $get_next (get_local $here)))
-            (call $gc_free_body (get_local $next_here)))))
+            (call $gc_all_free_body (get_local $next_here)))))
 
-  (func $gc_free
-        (call $gc_free_body (i32.const 0)))
+  (func $gc_all_free
+        (call $gc_all_free_body (i32.const 0)))
 
   (; END DEFNITION OF MEMORY FUNCTIONS ;)
 
@@ -289,6 +312,6 @@
         (set_local $p1 (call $gc_malloc (i32.const 10) (i32.const 1)))
         (call $gc_increase_rc (get_local $p1))
         (call $gc_decrease_rc (get_local $p1))
-        (call $gc_free)
+        (; (call $gc_all_free) ;)
         (; (drop) ;)
         (call $gc_malloc (i32.const 10) (i32.const 1))))

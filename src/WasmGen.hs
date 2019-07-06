@@ -124,17 +124,18 @@ prog2Wasm (C.Prog fds e) =
     where f x = fromJust . lookup x $ zip (map (\(C.FunDef _ x _ _) -> x) fds) [0..]
 
 -- ``inc'' takes the body of the function and append GCIncreaseRC when the
--- function returns non TUnit value.
+-- function returns non TUnit value. We increase the RC of the return value 
+-- so that it is not collected by GC.
 fundef2Wasm :: (C.Var -> Int) -> C.FunDef -> Inst
 fundef2Wasm f (C.FunDef tyfundef (C.Label tyfname fname) args exp) =
   let (b,l) = runState (exp2Wasm exp) GenMState {localVariables = [Local P.TInt stackTopVar], label2index = f} in
+  -- Func fname tyfundef args $ inc (localVariables l ++ b) ++ [GCFree]
   Func fname tyfundef args $ inc (localVariables l ++ b)
   where
       l2s (C.Var _ v) = v
       inc is = case tyfundef of
                 P.TUnit -> is
-                _ -> is
-                -- _ -> [GCIncreaseRC $ is ++ dupStackTop 2]
+                _ -> [GCIncreaseRC $ is ++ dupStackTop 2]
 
 data GenMState = GenMState { localVariables :: [Inst], label2index :: C.Var -> Int }
 type GenM a = (State GenMState a)
@@ -213,7 +214,7 @@ exp2Wasm (C.ETuple _ es) = do
   where
     storeTupleBody = concat <$> mapM storeTupleBodyElement (zip es [0..])
     storeTupleBodyElement (e,i) = do 
-      let storeToTuple is = [I32Const (4*i), I32Add] ++ is ++ [I32Store]
+      let storeToTuple is = [I32Const (4*i), I32Add] ++ is ++ dupStackTop 1 ++ [GCIncreaseRC [GetLocal stackTopVar]] ++ [I32Store]
       y <- exp2Wasm e
       return $ storeToTuple y
 exp2Wasm (C.EDTuple _ vs e1 e2) = do
@@ -254,7 +255,7 @@ exp2Wasm (C.ESetA _ e1 e2 e3) = do
   is2 <- exp2Wasm e2
   is3 <- exp2Wasm e3
   -- Because all values are boxed, we can use I32Store for all values.
-  return $ Comment "Array set": is1 ++ is2 ++ [I32Load, I32Const 4, I32Mul, I32Add] ++ is3 ++ [I32Store]
+  return $ Comment "Array set": is1 ++ is2 ++ [I32Load, I32Const 4, I32Mul, I32Add] ++ is3 ++ dupStackTop 1 ++ [GCIncreaseRC [GetLocal stackTopVar]] ++ [I32Store]
 exp2Wasm (C.EPrintI32 _ e) = do
   is <- exp2Wasm e
   return (is ++ [I32Load, PrintInt])

@@ -19,7 +19,7 @@ removeUnusedExp (C.EAppCls t e1 e2s) = C.EAppCls t (removeUnusedExp e1) (map rem
 removeUnusedExp (C.ETuple t es) = C.ETuple t (map removeUnusedExp es)
 removeUnusedExp (C.ERec t x ys e1 e2) = C.ERec t x ys (removeUnusedExp e1) (removeUnusedExp e2)
 removeUnusedExp (C.ELet t x e1 e2) =
-  if x `elem` (fv e2)
+  if x `elem` fv e2
   then C.ELet t x (removeUnusedExp e1) (removeUnusedExp e2)
   else removeUnusedExp e2
 removeUnusedExp (C.EDTuple t xs e1 e2) =
