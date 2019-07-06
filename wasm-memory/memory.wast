@@ -181,10 +181,11 @@
         (i32.load (i32.add (get_global $GC_OFFSET_RC) (get_local $here))))
 
   (; ``here'' does not contain GC_HEAD_SIZE because this function is called from outside. ;)
-  (func $gc_increase_rc (param $here i32)
+  (func $gc_increase_rc (param $here i32) (result i32)
         (set_local $here (i32.sub (get_local $here) (get_global $GC_HEAD_SIZE)))
         (i32.store (i32.add (get_global $GC_OFFSET_RC) (get_local $here))
-                   (i32.add (i32.const 1) (call $gc_get_rc (get_local $here)))))
+                   (i32.add (i32.const 1) (call $gc_get_rc (get_local $here))))
+        (i32.add (get_local $here) (get_global $GC_HEAD_SIZE)))
 
   (func $gc_decrease_rc_dfs (param $here i32)
         (local $offset i32)
@@ -269,13 +270,15 @@
                          (br $loop))))))
 
   (; ``here'' does not contain GC_HEAD_SIZE because this function is called from outside. ;)
-  (func $gc_decrease_rc (param $here i32)
-        (if (i32.eq (get_local $here) (i32.const 0))
-          (then)
+  (func $gc_decrease_rc (param $here i32) (result i32)
+        (if (result i32) (i32.eq (get_local $here) (i32.const 0))
+          (then
+            (get_local $here))
           (else
             (set_local $here (i32.sub (get_local $here) (get_global $GC_HEAD_SIZE)))
             (call $gc_decrease_rc_dfs (get_local $here))
-            (call $gc_unset_searched_dfs (get_local $here)))))
+            (call $gc_unset_searched_dfs (get_local $here))
+            (i32.add (get_local $here) (get_global $GC_HEAD_SIZE)))))
 
   (; is_value is 0(not a value) or 1(value) ;)
   (func $gc_malloc (param $size i32) (param $is_value i32) (result i32)
@@ -308,10 +311,9 @@
   (func (export "main") (result i32)
         (local $p1 i32)
         (call $gc_initalize)
-        (; (call $malloc (i32.const 20)))) ;)
         (set_local $p1 (call $gc_malloc (i32.const 10) (i32.const 1)))
         (call $gc_increase_rc (get_local $p1))
+        (drop)
         (call $gc_decrease_rc (get_local $p1))
-        (; (call $gc_all_free) ;)
-        (; (drop) ;)
+        (drop)
         (call $gc_malloc (i32.const 10) (i32.const 1))))

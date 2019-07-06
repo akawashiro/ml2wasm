@@ -34,11 +34,12 @@ data Inst = I32Const Int |
             Table Int |
             Func String P.Type [C.Var] [Inst] |
             GCMalloc [Inst] Bool |
-            GCIncreaseRC [Inst] |
-            GCDecreaseRC [Inst] |
+            GCIncreaseRC |
+            GCDecreaseRC |
             GCFree |
             PrintInt |
             PrintFloat |
+            Drop |
             Comment String
             deriving (Eq)
 instance Show Inst where
@@ -81,9 +82,10 @@ instance Show Inst where
   show (GCMalloc s v) =  intercalate "\n" (map show s) ++  "\n(i32.const " ++ (if v then "1" else "0") ++ ")\n" ++ "(call $gc_malloc)"
   show PrintInt = "(call $print_i32)"
   show PrintFloat = "(call $print_f32)"
-  show (GCIncreaseRC is) = intercalate "\n" (map show is) ++ "\n(call $gc_increase_rc)"
-  show (GCDecreaseRC is) = intercalate "\n" (map show is) ++ "\n(call $gc_decrease_rc)"
+  show GCIncreaseRC = "(call $gc_increase_rc)"
+  show GCDecreaseRC = "(call $gc_decrease_rc)"
   show GCFree = "(call $gc_free)"
+  show Drop = "(drop)"
   show (Comment s) = "(; " ++ s ++ " ;)"
 
 -- Wasm FunDefs Main
@@ -128,14 +130,15 @@ prog2Wasm (C.Prog fds e) =
 -- so that it is not collected by GC.
 fundef2Wasm :: (C.Var -> Int) -> C.FunDef -> Inst
 fundef2Wasm f (C.FunDef tyfundef (C.Label tyfname fname) args exp) =
-  let (b,l) = runState (exp2Wasm exp) GenMState {localVariables = [Local P.TInt stackTopVar], label2index = f} in
-  -- Func fname tyfundef args $ inc (localVariables l ++ b) ++ [GCFree]
-  Func fname tyfundef args $ inc (localVariables l ++ b)
+  Func fname tyfundef args $ localVariables vars ++ body ++ inc ++ dec
   where
-      l2s (C.Var _ v) = v
-      inc is = case tyfundef of
-                P.TUnit -> is
-                _ -> [GCIncreaseRC $ is ++ dupStackTop 2]
+      (body,vars) = runState (exp2Wasm exp) GenMState {localVariables = [Local P.TInt stackTopVar], label2index = f}
+      -- If the function returns a value, we must increase RC.
+      inc = case tyfundef of
+                P.TUnit -> []
+                _ -> [GCIncreaseRC]
+      -- Decrease all RCs of local variables except stackTopVar.
+      dec = concatMap (\(Local _ v) -> [GetLocal v, GCDecreaseRC, Drop]) $ localVariables vars \\ [Local P.TInt stackTopVar]
 
 data GenMState = GenMState { localVariables :: [Inst], label2index :: C.Var -> Int }
 type GenM a = (State GenMState a)
@@ -177,7 +180,9 @@ exp2Wasm (C.EIf t e1 e2 e3) = do
   is2 <- exp2Wasm e2
   is3 <- exp2Wasm e3
   -- All values are boxed therefore return type become P.TInt.
-  return [Comment "if", IfThenElse P.TInt is1 is2 is3]
+  return [Comment "if", IfThenElse rt is1 is2 is3]
+  where
+    rt = if t == P.TUnit then P.TUnit else P.TInt
 exp2Wasm (C.EInt t i) = return $ storeRowValue t [I32Const i]
 exp2Wasm (C.EFloat t f) = return $ storeRowValue t [F32Const f]
 exp2Wasm (C.EVar t (C.Var _ v)) = 
@@ -188,7 +193,7 @@ exp2Wasm (C.EVar _ (C.Label t l)) = do
 exp2Wasm (C.EOp t o e1 e2) = do
   is1 <- exp2Wasm e1
   is2 <- exp2Wasm e2
-  return $ storeRowValue t (is1 ++ [loadValue (C.getTypeOfExp e1)] ++ is2 ++ [loadValue (C.getTypeOfExp e2)] ++ [op o])
+  return $ Comment "arith op" : storeRowValue t (is1 ++ [loadValue t1] ++ is2 ++ [loadValue t2] ++ [op o]) ++ [Comment "arith op end"]
     where op P.OPlus  = I32Add
           op P.OMinus = I32Sub
           op P.OTimes = I32Mul
@@ -199,38 +204,36 @@ exp2Wasm (C.EOp t o e1 e2) = do
           op P.OFTimes = F32Mul
           op P.OFLess  = F32Less
           op P.OFDiv   = F32Div
+          t1 = if o == P.OPlus || o == P.OMinus || o == P.OTimes || o == P.OLess || o == P.ODiv 
+                   then P.TInt
+                   else P.TFloat
+          t2 = t1
 exp2Wasm (C.ELet _ (C.Var t v) e1 e2) = do
   putLocal t v
   is1 <- exp2Wasm e1
   is2 <- exp2Wasm e2
-  return $ Comment "let" : is1 ++ [SetLocal ("$"++v), GCIncreaseRC [GetLocal ("$"++v)]] ++ is2 ++ [GCDecreaseRC [GetLocal ("$"++v)]]
-  -- return $ Comment "let" : is1 ++ [SetLocal ("$"++v), GCIncreaseRC [GetLocal ("$"++v)]] ++ is2 ++ [GCDecreaseRC [GetLocal ("$"++v)]]
-  -- return $ Comment "let" : is1 ++ [SetLocal ("$"++v)] ++ is2
+  return $ Comment "let" : is1 ++ [GCIncreaseRC, SetLocal ("$"++v)] ++ is2
 exp2Wasm (C.ETuple _ es) = do
   let reserve = [GCMalloc [I32Const (4 * length es)] False]
   -- let reserve = [GCMalloc [I32Const (4 * length es)] True]
   is <- storeTupleBody
-  return $ Comment "tuple construction": reserve ++ dupStackTop (1 + length es) ++ is
+  return $ Comment "tuple construction": reserve ++ dupStackTop (1 + length es) ++ is ++ [Comment "tuple construction end"]
   where
     storeTupleBody = concat <$> mapM storeTupleBodyElement (zip es [0..])
     storeTupleBodyElement (e,i) = do 
-      let storeToTuple is = [I32Const (4*i), I32Add] ++ is ++ dupStackTop 1 ++ [GCIncreaseRC [GetLocal stackTopVar]] ++ [I32Store]
+      let storeToTuple is = [I32Const (4*i), I32Add] ++ is ++ [GCIncreaseRC, I32Store]
       y <- exp2Wasm e
       return $ storeToTuple y
 exp2Wasm (C.EDTuple _ vs e1 e2) = do
-  set <- concat <$> mapM f (zip vs (map (*4) [0..]))
   is1 <- exp2Wasm e1
+  set <- concat <$> mapM f (zip vs (map (*4) [0..]))
   is2 <- exp2Wasm e2
-  return $ Comment "tuple destruction": is1 ++ [SetLocal stackTopVar] ++ set ++ is2
-  -- return $ Comment "tuple destruction": is1 ++ [SetLocal stackTopVar] ++ set ++ is2 ++ g
+  return $ Comment "tuple destruction": is1 ++ [SetLocal stackTopVar] ++ set ++ is2 ++ [Comment "tuple destruction end"]
     where
       f :: (C.Var, Int) -> GenM [Inst]
       f (C.Var t v, offset) = do
         putLocal t v
         return [GetLocal stackTopVar, I32Const offset, I32Add, I32Load, SetLocal ("$"++v)]
-        -- return [GetLocal stackTopVar, I32Const offset, I32Add, I32Load, SetLocal ("$"++v), GCIncreaseRC [GetLocal ("$"++v)]]
-      g :: [Inst]
-      g = map (\(C.Var _ v) -> GCDecreaseRC [GetLocal ("$"++v)]) vs
 exp2Wasm (C.EAppCls rtype e1 args) = do
   isargs <- concat <$> mapM exp2Wasm args
   is1 <- exp2Wasm e1
@@ -255,7 +258,7 @@ exp2Wasm (C.ESetA _ e1 e2 e3) = do
   is2 <- exp2Wasm e2
   is3 <- exp2Wasm e3
   -- Because all values are boxed, we can use I32Store for all values.
-  return $ Comment "Array set": is1 ++ is2 ++ [I32Load, I32Const 4, I32Mul, I32Add] ++ is3 ++ dupStackTop 1 ++ [GCIncreaseRC [GetLocal stackTopVar]] ++ [I32Store]
+  return $ Comment "Array set": is1 ++ is2 ++ [I32Load, I32Const 4, I32Mul, I32Add] ++ is3 ++ [GCIncreaseRC, I32Store]
 exp2Wasm (C.EPrintI32 _ e) = do
   is <- exp2Wasm e
   return (is ++ [I32Load, PrintInt])
