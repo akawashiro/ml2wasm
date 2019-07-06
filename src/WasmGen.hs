@@ -1,6 +1,6 @@
--- {-# OPTIONS_GHC -fwarn-incomplete-patterns #-}
+{-# OPTIONS_GHC -fwarn-incomplete-patterns #-}
 
-module WasmGen where
+module WasmGen (prog2Wasm, wasmToString) where
 
 import qualified Closure             as C
 import           Control.Monad.State
@@ -120,7 +120,7 @@ printType (P.TFun _ _) = "i32"
 
 prog2Wasm :: C.Prog -> Wasm
 prog2Wasm (C.Prog fds e) =
-  let (b,l) = runState (exp2Wasm e) GenMState {localVariables = [Local P.TInt stackTopVar], label2index = f} in
+  let (b,l) = runState (exp2Insts e) GenMState {localVariables = [Local P.TInt stackTopVar], label2index = f} in
   let fdiss = map (fundef2Wasm f) fds in
   Wasm (C.getTypeOfExp e) fdiss (localVariables l ++ b)
     where f x = fromJust . lookup x $ zip (map (\(C.FunDef _ x _ _) -> x) fds) [0..]
@@ -132,7 +132,7 @@ fundef2Wasm :: (C.Var -> Int) -> C.FunDef -> Inst
 fundef2Wasm f (C.FunDef tyfundef (C.Label tyfname fname) args exp) =
   Func fname tyfundef args $ localVariables vars ++ body ++ inc ++ dec
   where
-      (body,vars) = runState (exp2Wasm exp) GenMState {localVariables = [Local P.TInt stackTopVar], label2index = f}
+      (body,vars) = runState (exp2Insts exp) GenMState {localVariables = [Local P.TInt stackTopVar], label2index = f}
       -- If the function returns a value, we must increase RC.
       inc = case tyfundef of
                 P.TUnit -> []
@@ -174,26 +174,27 @@ storeRowValue t ist =
 
 loadValue t = if t == P.TFloat then F32Load else I32Load
 
-exp2Wasm :: C.Exp -> GenM [Inst]
-exp2Wasm (C.EIf t e1 e2 e3) = do
-  is1 <- liftM2 (++) (exp2Wasm e1) (return [loadValue $ C.getTypeOfExp e1])
-  is2 <- exp2Wasm e2
-  is3 <- exp2Wasm e3
+exp2Insts :: C.Exp -> GenM [Inst]
+exp2Insts (C.EIf t e1 e2 e3) = do
+  is1 <- liftM2 (++) (exp2Insts e1) (return [loadValue $ C.getTypeOfExp e1])
+  is2 <- exp2Insts e2
+  is3 <- exp2Insts e3
   -- All values are boxed therefore return type become P.TInt.
   return [Comment "if", IfThenElse rt is1 is2 is3]
   where
     rt = if t == P.TUnit then P.TUnit else P.TInt
-exp2Wasm (C.EInt t i) = return $ storeRowValue t [I32Const i]
-exp2Wasm (C.EFloat t f) = return $ storeRowValue t [F32Const f]
-exp2Wasm (C.EVar t (C.Var _ v)) = 
+exp2Insts (C.EInt t i) = return $ storeRowValue t [I32Const i]
+exp2Insts (C.EFloat t f) = return $ storeRowValue t [F32Const f]
+exp2Insts (C.EVar t (C.Var _ v)) = 
   return [GetLocal ("$"++v)]
-exp2Wasm (C.EVar _ (C.Label t l)) = do
+exp2Insts (C.EVar _ (C.Label t l)) = do
   i <- getLabelIndex (C.Label t l)
   return $ storeRowValue t [I32Const i]
-exp2Wasm (C.EOp t o e1 e2) = do
-  is1 <- exp2Wasm e1
-  is2 <- exp2Wasm e2
-  return $ Comment "arith op" : storeRowValue t (is1 ++ [loadValue t1] ++ is2 ++ [loadValue t2] ++ [op o]) ++ [Comment "arith op end"]
+-- If e1 or e2 is an immediate value, we do not need to store it to the heap.
+exp2Insts (C.EOp t o e1 e2) = do
+  is1 <- loade1
+  is2 <- loade2
+  return $ Comment "arith op" : storeRowValue t (is1 ++ is2 ++ [op o]) ++ [Comment "arith op end"]
     where op P.OPlus  = I32Add
           op P.OMinus = I32Sub
           op P.OTimes = I32Mul
@@ -208,12 +209,20 @@ exp2Wasm (C.EOp t o e1 e2) = do
                    then P.TInt
                    else P.TFloat
           t2 = t1
-exp2Wasm (C.ELet _ (C.Var t v) e1 e2) = do
+          loade1 = case e1 of
+                     (C.EInt _ i) -> return [I32Const i]
+                     (C.EFloat _ f) -> return [F32Const f]
+                     _ -> exp2Insts e1 >>= (\x->return (x++[loadValue t1]))
+          loade2 = case e2 of
+                     (C.EInt _ i) -> return [I32Const i]
+                     (C.EFloat _ f) -> return [F32Const f]
+                     _ -> exp2Insts e2 >>= (\x->return (x++[loadValue t2]))
+exp2Insts (C.ELet _ (C.Var t v) e1 e2) = do
   putLocal t v
-  is1 <- exp2Wasm e1
-  is2 <- exp2Wasm e2
+  is1 <- exp2Insts e1
+  is2 <- exp2Insts e2
   return $ Comment "let" : is1 ++ [GCIncreaseRC, SetLocal ("$"++v)] ++ is2
-exp2Wasm (C.ETuple _ es) = do
+exp2Insts (C.ETuple _ es) = do
   let reserve = [GCMalloc [I32Const (4 * length es)] False]
   -- let reserve = [GCMalloc [I32Const (4 * length es)] True]
   is <- storeTupleBody
@@ -222,46 +231,46 @@ exp2Wasm (C.ETuple _ es) = do
     storeTupleBody = concat <$> mapM storeTupleBodyElement (zip es [0..])
     storeTupleBodyElement (e,i) = do 
       let storeToTuple is = [I32Const (4*i), I32Add] ++ is ++ [GCIncreaseRC, I32Store]
-      y <- exp2Wasm e
+      y <- exp2Insts e
       return $ storeToTuple y
-exp2Wasm (C.EDTuple _ vs e1 e2) = do
-  is1 <- exp2Wasm e1
+exp2Insts (C.EDTuple _ vs e1 e2) = do
+  is1 <- exp2Insts e1
   set <- concat <$> mapM f (zip vs (map (*4) [0..]))
-  is2 <- exp2Wasm e2
+  is2 <- exp2Insts e2
   return $ Comment "tuple destruction": is1 ++ [SetLocal stackTopVar] ++ set ++ is2 ++ [Comment "tuple destruction end"]
     where
       f :: (C.Var, Int) -> GenM [Inst]
       f (C.Var t v, offset) = do
         putLocal t v
         return [GetLocal stackTopVar, I32Const offset, I32Add, I32Load, SetLocal ("$"++v)]
-exp2Wasm (C.EAppCls rtype e1 args) = do
-  isargs <- concat <$> mapM exp2Wasm args
-  is1 <- exp2Wasm e1
+exp2Insts (C.EAppCls rtype e1 args) = do
+  isargs <- concat <$> mapM exp2Insts args
+  is1 <- exp2Insts e1
   -- We must get the function number from the closure therefore we need two
   -- I32Load.
   return $ isargs ++ is1 ++ is1 ++ [I32Load, I32Load, CallIndirect (C.getTypeOfExp e1)]
-exp2Wasm (C.ESeq _ e1 e2) = do
-  is1 <- exp2Wasm e1
-  is2 <- exp2Wasm e2
+exp2Insts (C.ESeq _ e1 e2) = do
+  is1 <- exp2Insts e1
+  is2 <- exp2Insts e2
   return (is1 ++ is2)
-exp2Wasm (C.EMakeA _ e1) = do
-  is1 <- exp2Wasm e1
+exp2Insts (C.EMakeA _ e1) = do
+  is1 <- exp2Insts e1
   -- You must use I32Load because is1 returns a boxed value.
   return [Comment "Array construction", GCMalloc (is1 ++ [I32Load, I32Const 4, I32Mul]) False]
-exp2Wasm (C.EGetA t e1 e2) = do
-  is1 <- exp2Wasm e1
-  is2 <- exp2Wasm e2
+exp2Insts (C.EGetA t e1 e2) = do
+  is1 <- exp2Insts e1
+  is2 <- exp2Insts e2
   -- Because all values are boxed, we can use I32Load for all values.
   return $ Comment "Array get": is1 ++ is2 ++ [I32Load, I32Const 4, I32Mul, I32Add, I32Load]
-exp2Wasm (C.ESetA _ e1 e2 e3) = do
-  is1 <- exp2Wasm e1
-  is2 <- exp2Wasm e2
-  is3 <- exp2Wasm e3
+exp2Insts (C.ESetA _ e1 e2 e3) = do
+  is1 <- exp2Insts e1
+  is2 <- exp2Insts e2
+  is3 <- exp2Insts e3
   -- Because all values are boxed, we can use I32Store for all values.
   return $ Comment "Array set": is1 ++ is2 ++ [I32Load, I32Const 4, I32Mul, I32Add] ++ is3 ++ [GCIncreaseRC, I32Store]
-exp2Wasm (C.EPrintI32 _ e) = do
-  is <- exp2Wasm e
+exp2Insts (C.EPrintI32 _ e) = do
+  is <- exp2Insts e
   return (is ++ [I32Load, PrintInt])
-exp2Wasm (C.EPrintF32 _ e) = do
-  is <- exp2Wasm e
+exp2Insts (C.EPrintF32 _ e) = do
+  is <- exp2Insts e
   return (is ++ [F32Load, PrintFloat])

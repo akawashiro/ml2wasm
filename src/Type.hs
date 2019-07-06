@@ -25,17 +25,17 @@ type MakeSubstituition = Either String
 
 -- Apply substitution to an exp
 ae :: Substituition -> Exp -> Exp
-ae s (EInt t i) = (EInt TInt i)
-ae s (EFloat t f) = (EFloat TFloat f)
-ae s (EBool t b) = (EBool TInt b)
-ae s (EOp t o e2 e3) = (EOp (at s t) o (ae s e2) (ae s e3))
-ae s (EIf t e1 e2 e3) = (EIf (at s t) (ae s e1) (ae s e2) (ae s e3))
-ae s (ELet t v e2 e3) = (ELet (at s t) (av s v) (ae s e2) (ae s e3)) 
-ae s (EDTuple t vs e1 e2) = (EDTuple (at s t) (map (av s) vs) (ae s e1) (ae s e2))
-ae s (ERec t x vs e1 e2) = (ERec (at s t) (av s x) (map (av s) vs) (ae s e1) (ae s e2))
-ae s (EVar t v) = (EVar (at s t) (av s v))
-ae s (EApp t e1 e2) = (EApp (at s t) (ae s e1) (map (ae s) e2))
-ae s (ETuple t es) = (ETuple (at s t) (map (ae s) es))
+ae s (EInt t i) = EInt TInt i
+ae s (EFloat t f) = EFloat TFloat f
+ae s (EBool t b) = EBool TInt b
+ae s (EOp t o e2 e3) = EOp (at s t) o (ae s e2) (ae s e3)
+ae s (EIf t e1 e2 e3) = EIf (at s t) (ae s e1) (ae s e2) (ae s e3)
+ae s (ELet t v e2 e3) = ELet (at s t) (av s v) (ae s e2) (ae s e3)
+ae s (EDTuple t vs e1 e2) = EDTuple (at s t) (map (av s) vs) (ae s e1) (ae s e2)
+ae s (ERec t x vs e1 e2) = ERec (at s t) (av s x) (map (av s) vs) (ae s e1) (ae s e2)
+ae s (EVar t v) = EVar (at s t) (av s v)
+ae s (EApp t e1 e2) = EApp (at s t) (ae s e1) (map (ae s) e2)
+ae s (ETuple t es) = ETuple (at s t) (map (ae s) es)
 ae s (ESeq t e1 e2) = ESeq (at s t) (ae s e1) (ae s e2)
 ae s (EMakeA t e) = EMakeA (at s t) (ae s e)
 ae s (EGetA t e1 e2) = EGetA (at s t) (ae s e1) (ae s e2)
@@ -45,14 +45,17 @@ ae s (EPrintF32 t e) = EPrintF32 (at s t) (ae s e)
 
 -- Apply substitution to an type
 at :: Substituition -> Type -> Type
-at s (TVar v) = maybe (TVar v) id (lookup (TVar v) s)
-at s (TFun ts t) = TFun (map (at s) ts) (at s t)
-at s (TTuple ts) = TTuple (map (at s) ts)
-at s (TArray t)  = TArray (at s t)
-at s t = t
+at s t = foldr at' t s
+
+at' :: (Type, Type) -> Type -> Type
+at' (t1,t2) (TVar v) = if t1 == TVar v then t2 else TVar v
+at' tt (TFun ts t) = TFun (map (at' tt) ts) (at' tt t)
+at' tt (TTuple ts) = TTuple (map (at' tt) ts)
+at' tt (TArray t)  = TArray (at' tt t)
+at' tt t = t
 
 -- Apply substitution to an variable
-av sub (Var t s) = (Var (at sub t) s)
+av sub (Var t s) = Var (at sub t) s
 
 getTypeOfExp = gt
 
@@ -107,8 +110,8 @@ ms (ESeq t e1 e2) = [(TUnit,gt e1), (t, gt e2)] ++ ms e1 ++ ms e2
 ms (EMakeA t e) = (TInt, gt e) : ms e
 ms (EGetA t e1 e2) = [(TArray t, gt e1), (TInt, gt e2)] ++ ms e1 ++ ms e2
 ms (ESetA t e1 e2 e3) = [(TUnit, t),(gt e1, TArray (gt e3)), (gt e2,TInt)] ++ ms e1 ++ ms e2
-ms (EPrintI32 t e1) = [(TUnit,t),(gt e1,TInt)]
-ms (EPrintF32 t e1) = [(TUnit,t),(gt e1,TFloat)]
+ms (EPrintI32 t e1) = [(TUnit,t),(gt e1,TInt)] ++ ms e1
+ms (EPrintF32 t e1) = [(TUnit,t),(gt e1,TFloat)] ++ ms e1
 
 freeTVarIndex :: Type -> [TVarIndex]
 freeTVarIndex = nub . freeTVarIndex'
@@ -127,7 +130,7 @@ replace t1 t2 t3 = if t1 == t3
     TFun t4s t5 -> TFun (map (replace t1 t2) t4s) (replace t1 t2 t5)
     TTuple ts -> TTuple (map (replace t1 t2) ts)
     TArray t -> TArray (replace t1 t2 t)
-    otherwise -> t3
+    _ -> t3
 
 --
 -- replace all t1 in s with t2
@@ -135,18 +138,34 @@ replaceSubstituition :: Type -> Type -> Substituition -> Substituition
 replaceSubstituition t1 t2 s = map (\(x,y) -> ((replace t1 t2 x), (replace t1 t2 y))) s
 
 unify :: Substituition -> Either String Substituition
-unify s = unify' s []
-unify' [] b = return b
-unify' ((t1, t2) : r) b
-  | t1 == t2 = unify' r b
-  | otherwise = case (t1,t2) of
-    (TFun t3 t4,TFun t5 t6) -> unify' ((t4,t6):zip t3 t5 ++ r) b
-    (TTuple t3s,TTuple t4s) -> unify' (zip t3s t4s ++ r) b
-    (TArray t3, TArray t4) -> unify' ((t3,t4):r) b
-    (TVar tv1,t4) -> if tv1 `elem` freeTVarIndex t4
-      then fail ""
-      else do 
-        u <- unify' (replaceSubstituition (TVar tv1) t4 (r)) ((TVar tv1,t4) : replaceSubstituition (TVar tv1) t4 b)
-        return u
-    (t4, TVar t3) -> unify' ((TVar t3,t4) : r) b
-    otherwise -> Left $ "Cannot unify " ++ show t1 ++ " and " ++ show t2
+unify [] = return []
+unify ((t1, t2): r)
+    | t1 == t2 = unify r
+    | otherwise = case (t1,t2) of
+        (TFun t3 t4,TFun t5 t6) -> unify ((t4,t6):zip t3 t5 ++ r)
+        (TTuple t3s,TTuple t4s) -> unify (zip t3s t4s ++ r)
+        (TArray t3, TArray t4) -> unify ((t3,t4):r)
+        (TVar tv1,t4) -> if tv1 `elem` freeTVarIndex t4
+            then Left $ "A type variable apprears recursively in " ++ show t1 ++ " and " ++ show t2 ++ "."
+            else (unify $ replaceSubstituition (TVar tv1) t4 r) >>= (\x->return $ (TVar tv1,t4):x)
+        (t4,TVar tv1) -> if tv1 `elem` freeTVarIndex t4
+            then Left $ "A type variable apprears recursively in " ++ show t1 ++ " and " ++ show t2 ++ "."
+            else (unify $ replaceSubstituition (TVar tv1) t4 r) >>= (\x->return $ (TVar tv1,t4):x)
+        _ -> Left $ "Cannot unify " ++ show t1 ++ " and " ++ show t2
+
+-- unify :: Substituition -> Either String Substituition
+-- unify s = unify' s []
+-- unify' [] b = return b
+-- unify' ((t1, t2) : r) b
+--   | t1 == t2 = unify' r b
+--   | otherwise = case (t1,t2) of
+--     (TFun t3 t4,TFun t5 t6) -> unify' ((t4,t6):zip t3 t5 ++ r) b
+--     (TTuple t3s,TTuple t4s) -> unify' (zip t3s t4s ++ r) b
+--     (TArray t3, TArray t4) -> unify' ((t3,t4):r) b
+--     (TVar tv1,t4) -> if tv1 `elem` freeTVarIndex t4
+--       then fail ""
+--       else do 
+--         u <- unify' (replaceSubstituition (TVar tv1) t4 r) ((TVar tv1,t4) : replaceSubstituition (TVar tv1) t4 b)
+--         return u
+--     (t4, TVar t3) -> unify' ((TVar t3,t4) : r) b
+--     _ -> Left $ "Cannot unify " ++ show t1 ++ " and " ++ show t2
