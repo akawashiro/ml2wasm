@@ -194,7 +194,7 @@ exp2Insts (C.EVar _ (C.Label t l)) = do
 exp2Insts (C.EOp t o e1 e2) = do
   is1 <- loade1
   is2 <- loade2
-  return $ Comment "arith op" : storeRowValue t (is1 ++ is2 ++ [op o]) ++ [Comment "arith op end"]
+  return $ Comment "arith op" : storeRowValue tr (is1 ++ is2 ++ [op o]) ++ [Comment "arith op end"]
     where op P.OPlus  = I32Add
           op P.OMinus = I32Sub
           op P.OTimes = I32Mul
@@ -209,6 +209,9 @@ exp2Insts (C.EOp t o e1 e2) = do
                    then P.TInt
                    else P.TFloat
           t2 = t1
+          tr = if o == P.OFPlus || o == P.OFMinus || o == P.OFTimes || o == P.OFDiv 
+                   then P.TFloat
+                   else P.TInt
           loade1 = case e1 of
                      (C.EInt _ i) -> return [I32Const i]
                      (C.EFloat _ f) -> return [F32Const f]
