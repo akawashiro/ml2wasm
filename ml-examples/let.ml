@@ -1,1 +1,5 @@
-let x = 10 in x + 20
+let rec f x =
+    let y = 20 in
+    let r = x + y in
+    r in
+f 30

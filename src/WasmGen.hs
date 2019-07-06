@@ -34,8 +34,9 @@ data Inst = I32Const Int |
             Table Int |
             Func String P.Type [C.Var] [Inst] |
             GCMalloc [Inst] Bool |
-            GCIncreaseRC Int |
-            GCDecreaseRC Int |
+            GCIncreaseRC [Inst] |
+            GCDecreaseRC [Inst] |
+            GCFree |
             PrintInt |
             PrintFloat |
             Comment String
@@ -80,6 +81,9 @@ instance Show Inst where
   show (GCMalloc s v) =  intercalate "\n" (map show s) ++  "\n(i32.const " ++ (if v then "1" else "0") ++ ")\n" ++ "(call $gc_malloc)"
   show PrintInt = "(call $print_i32)"
   show PrintFloat = "(call $print_f32)"
+  show (GCIncreaseRC is) = intercalate "\n" (map show is) ++ "\n(call $gc_increase_rc)"
+  show (GCDecreaseRC is) = intercalate "\n" (map show is) ++ "\n(call $gc_decrease_rc)"
+  show GCFree = "(call $gc_free)"
   show (Comment s) = "(; " ++ s ++ " ;)"
 
 -- Wasm FunDefs Main
@@ -119,11 +123,18 @@ prog2Wasm (C.Prog fds e) =
   Wasm (C.getTypeOfExp e) fdiss (localVariables l ++ b)
     where f x = fromJust . lookup x $ zip (map (\(C.FunDef _ x _ _) -> x) fds) [0..]
 
+-- ``inc'' takes the body of the function and append GCIncreaseRC when the
+-- function returns non TUnit value.
 fundef2Wasm :: (C.Var -> Int) -> C.FunDef -> Inst
 fundef2Wasm f (C.FunDef tyfundef (C.Label tyfname fname) args exp) =
   let (b,l) = runState (exp2Wasm exp) GenMState {localVariables = [Local P.TInt stackTopVar], label2index = f} in
-  Func fname tyfundef args (localVariables l ++ b)
-    where l2s (C.Var _ v) = v
+  Func fname tyfundef args $ inc (localVariables l ++ b)
+  where
+      l2s (C.Var _ v) = v
+      inc is = case tyfundef of
+                P.TUnit -> is
+                _ -> is
+                -- _ -> [GCIncreaseRC $ is ++ dupStackTop 2]
 
 data GenMState = GenMState { localVariables :: [Inst], label2index :: C.Var -> Int }
 type GenM a = (State GenMState a)
@@ -131,7 +142,7 @@ type GenM a = (State GenMState a)
 putLocal :: P.Type -> String -> GenM ()
 putLocal t s = do
   d <- get
-  if Local t ("$"++s) `elem` localVariables d
+  if Local P.TInt ("$"++s) `elem` localVariables d
   then return ()
   else put d {localVariables = Local P.TInt ("$"++s):localVariables d}
 
@@ -164,14 +175,15 @@ exp2Wasm (C.EIf t e1 e2 e3) = do
   is1 <- liftM2 (++) (exp2Wasm e1) (return [loadValue $ C.getTypeOfExp e1])
   is2 <- exp2Wasm e2
   is3 <- exp2Wasm e3
-  return [Comment "if", IfThenElse t is1 is2 is3]
+  -- All values are boxed therefore return type become P.TInt.
+  return [Comment "if", IfThenElse P.TInt is1 is2 is3]
 exp2Wasm (C.EInt t i) = return $ storeRowValue t [I32Const i]
 exp2Wasm (C.EFloat t f) = return $ storeRowValue t [F32Const f]
 exp2Wasm (C.EVar t (C.Var _ v)) = 
   return [GetLocal ("$"++v)]
 exp2Wasm (C.EVar _ (C.Label t l)) = do
   i <- getLabelIndex (C.Label t l)
-  return [I32Const i]
+  return $ storeRowValue t [I32Const i]
 exp2Wasm (C.EOp t o e1 e2) = do
   is1 <- exp2Wasm e1
   is2 <- exp2Wasm e2
@@ -190,16 +202,12 @@ exp2Wasm (C.ELet _ (C.Var t v) e1 e2) = do
   putLocal t v
   is1 <- exp2Wasm e1
   is2 <- exp2Wasm e2
-  return $ Comment "let" : is1 ++ [SetLocal ("$"++v)] ++ is2
-  where
-    isValue :: P.Type -> Bool
-    isValue t = case t of
-      P.TInt -> True
-      P.TFloat -> True
-      P.TFun _ _ -> True
-      _ -> False
+  return $ Comment "let" : is1 ++ [SetLocal ("$"++v), GCIncreaseRC [GetLocal ("$"++v)]] ++ is2 ++ [GCDecreaseRC [GetLocal ("$"++v)]]
+  -- return $ Comment "let" : is1 ++ [SetLocal ("$"++v), GCIncreaseRC [GetLocal ("$"++v)]] ++ is2 ++ [GCDecreaseRC [GetLocal ("$"++v)]]
+  -- return $ Comment "let" : is1 ++ [SetLocal ("$"++v)] ++ is2
 exp2Wasm (C.ETuple _ es) = do
   let reserve = [GCMalloc [I32Const (4 * length es)] False]
+  -- let reserve = [GCMalloc [I32Const (4 * length es)] True]
   is <- storeTupleBody
   return $ Comment "tuple construction": reserve ++ dupStackTop (1 + length es) ++ is
   where
@@ -213,16 +221,21 @@ exp2Wasm (C.EDTuple _ vs e1 e2) = do
   is1 <- exp2Wasm e1
   is2 <- exp2Wasm e2
   return $ Comment "tuple destruction": is1 ++ [SetLocal stackTopVar] ++ set ++ is2
+  -- return $ Comment "tuple destruction": is1 ++ [SetLocal stackTopVar] ++ set ++ is2 ++ g
     where
       f :: (C.Var, Int) -> GenM [Inst]
       f (C.Var t v, offset) = do
         putLocal t v
-        return [GetLocal stackTopVar, I32Const offset, I32Add, load t, SetLocal ("$"++v)]
-      load t = if t == P.TFloat then F32Load else I32Load
+        return [GetLocal stackTopVar, I32Const offset, I32Add, I32Load, SetLocal ("$"++v)]
+        -- return [GetLocal stackTopVar, I32Const offset, I32Add, I32Load, SetLocal ("$"++v), GCIncreaseRC [GetLocal ("$"++v)]]
+      g :: [Inst]
+      g = map (\(C.Var _ v) -> GCDecreaseRC [GetLocal ("$"++v)]) vs
 exp2Wasm (C.EAppCls rtype e1 args) = do
   isargs <- concat <$> mapM exp2Wasm args
   is1 <- exp2Wasm e1
-  return $ isargs ++ is1 ++ is1 ++ [I32Load, CallIndirect (C.getTypeOfExp e1)]
+  -- We must get the function number from the closure therefore we need two
+  -- I32Load.
+  return $ isargs ++ is1 ++ is1 ++ [I32Load, I32Load, CallIndirect (C.getTypeOfExp e1)]
 exp2Wasm (C.ESeq _ e1 e2) = do
   is1 <- exp2Wasm e1
   is2 <- exp2Wasm e2

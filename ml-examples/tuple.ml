@@ -1,1 +1,2 @@
-let (x,y) = (10,20) in print_i32 y; 0
+let w = (10,30,40) in
+w

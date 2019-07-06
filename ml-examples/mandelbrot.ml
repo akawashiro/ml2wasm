@@ -25,7 +25,6 @@ let rec m a b =
   f a b 0 in
 
 let dt = 0.04 in
-H   
 let rec plot x y =
   if (andb (1.0 <. x) (1.0 <. y))
   then 
