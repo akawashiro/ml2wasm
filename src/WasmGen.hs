@@ -56,7 +56,7 @@ instance Show Inst where
   show F32Add = "(f32.add)"
   show F32Sub = "(f32.sub)"
   show F32Mul = "(f32.mul)"
-  show F32Div = "(f32.div_s)"
+  show F32Div = "(f32.div)"
   show F32Less = "(f32.lt)"
   show I32Load = "(i32.load)"
   show I32Store = "(i32.store)"
@@ -270,12 +270,16 @@ exp2Insts (C.EGetA t e1 e2) = do
   is2 <- exp2Insts e2
   -- Because all values are boxed, we can use I32Load for all values.
   return $ Comment "Array get": is1 ++ is2 ++ [I32Load, I32Const 4, I32Mul, I32Add, I32Load]
-exp2Insts (C.ESetA _ e1 e2 e3) = do
-  is1 <- exp2Insts e1
-  is2 <- exp2Insts e2
-  is3 <- exp2Insts e3
+exp2Insts (C.ESetA _ array index value) = do
+  isAr <- exp2Insts array
+  isIn <- exp2Insts index
+  isVal <- exp2Insts value
   -- Because all values are boxed, we can use I32Store for all values.
-  return $ Comment "Array set": is1 ++ is2 ++ [I32Load, I32Const 4, I32Mul, I32Add] ++ is3 ++ [GCIncreaseRC, I32Store]
+  -- We need to decrease the RC of the old value.
+  return $ Comment "Array set": isAr ++ isIn ++ [I32Load, I32Const 4, I32Mul, I32Add] ++ decOld ++ isVal ++ [GCIncreaseRC, I32Store]
+  where
+      -- decOld = dupStackTop 2 ++ [I32Load, GCDecreaseRC, Drop]
+      decOld = []
 exp2Insts (C.EPrintI32 _ e) = do
   is <- exp2Insts e
   return (is ++ [I32Load, PrintInt])

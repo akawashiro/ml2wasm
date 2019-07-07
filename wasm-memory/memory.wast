@@ -215,9 +215,6 @@
         (i32.store (i32.add (get_global $GC_OFFSET_RC) (get_local $here))
                    (i32.sub (call $gc_get_rc (get_local $here)) (i32.const 1)))
 
-        (; (if (call $gc_is_value (get_local $here)) ;)
-          (; (then return)) ;)
-
         (; If the RC is 0, release the block ;)
         (if (i32.eq (call $gc_get_rc (get_local $here)) (i32.const 0))
           (then (call $free (get_local $here))))
@@ -226,25 +223,15 @@
         (if (call $gc_get_rc (get_local $here))
           (then return))
 
-        (; (if (i32.eq (call $gc_get_rc (get_local $here)) (i32.const 0)) ;)
-          (; (then  ;)
-            (; (if (call $gc_is_value (get_local $here)) ;)
-              (; (then) ;)
-              (; (else ;)
-                (; (call $free (get_local $here)))))) ;)
-
         (if (call $gc_is_value (get_local $here))
           (then
             (nop))
           (else
             (block $exit
                    (loop $loop
-                        (; (call $print_i32 (get_local $offset)) ;)
-                        (; (call $print_i32 (get_local $size_here)) ;)
                          (br_if $exit (i32.eq (get_local $offset) (get_local $size_here)))
-
-                         (; (if (i32.eq (i32.const 0) (i32.load (i32.add (get_global $GC_HEAD_SIZE) (i32.add (get_local $offset) (get_local $here))))) ;)
-                         (if (i32.eq (i32.const 0) (call $gc_get_rc (i32.add (get_local $offset) (get_local $here))))
+                         (; If the content of the cell is 0, skip it. Because it is a vacant cell. ;)
+                         (if (i32.eq (i32.const 0) (i32.load (i32.add (get_global $GC_HEAD_SIZE) (i32.add (get_local $offset) (get_local $here)))))
                            (then)
                            (else
                             (call $gc_decrease_rc_dfs (i32.sub (i32.load (i32.add (get_global $GC_HEAD_SIZE) (i32.add (get_local $offset) (get_local $here)))) (get_global $GC_HEAD_SIZE)))))
@@ -254,7 +241,6 @@
   (func $gc_unset_searched_dfs (param $here i32)
         (local $offset i32)
         (local $size_here i32)
-        (; (call $print_i32 (i32.const 222222)) ;)
 
         (; When ``here'' is NULL, return immediately ;)
         (if (i32.eq (i32.const 0) (get_local $here))
@@ -271,9 +257,8 @@
           (else
             (block $exit
                    (loop $loop
-                        (; (call $print_i32 (get_local $offset)) ;)
-                        (; (call $print_i32 (get_local $size_here)) ;)
                          (br_if $exit (i32.eq (get_local $offset) (get_local $size_here)))
+                         (; If the content of the cell is 0, skip it. Because it is a vacant cell. ;)
                          (if (i32.eq (i32.const 0) (i32.load (i32.add (get_global $GC_HEAD_SIZE) (i32.add (get_local $offset) (get_local $here)))))
                            (then)
                            (else
