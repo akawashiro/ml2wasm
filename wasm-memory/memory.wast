@@ -129,6 +129,18 @@
         (i32.store (get_global $OFFSET_FLAG) 
                     (i32.add (get_global $FLAG_END) (get_global $FLAG_NOT_USED))))
 
+  (func $malloc_measure_body (param $here i32) (param $nblock i32)
+        (if (call $is_end (get_local $here))
+          (then
+            (call $print_i32 (i32.const 9999999))
+            (call $print_i32 (get_local $nblock))
+            (call $print_i32 (i32.add (get_local $here) (call $get_size (get_local $here)))))
+          (else
+            (call $malloc_measure_body (call $get_next (get_local $here)) (i32.add (i32.const 1) (get_local $nblock))))))
+
+  (func $malloc_measure
+        (call $malloc_measure_body (i32.const 0) (i32.const 0)))
+
   (; In functions with the prefix of "gc_",  ;)
   (; adresses point the head of gc block not the head of malloc block. ;)
 
