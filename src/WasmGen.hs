@@ -103,8 +103,9 @@ wasmToString (Wasm ty fds is) memoryFile = do
     let mainLocal = intercalate "\n" (map show (takeWhile isLocal is)) ++ "\n"
     let gcInit = "(call $gc_initalize)\n"
     let mainBody = intercalate "\n" (map show (dropWhile isLocal is))
+    let measureMalloc = "(call $malloc_measure)\n"
     let mainSuffix = "))"
-    return $ prefix ++ memoryGlobalVariables ++ memoryFunctions ++ table ++ fundefs ++ elem ++ mainPrefix ++ mainLocal ++ gcInit ++ mainBody ++ mainSuffix
+    return $ prefix ++ memoryGlobalVariables ++ memoryFunctions ++ table ++ fundefs ++ elem ++ mainPrefix ++ mainLocal ++ gcInit ++ mainBody ++ measureMalloc ++ mainSuffix
     where
       isLocal :: Inst -> Bool
       isLocal (Local _ _) = True
@@ -130,15 +131,19 @@ prog2Wasm (C.Prog fds e) =
 -- so that it is not collected by GC.
 fundef2Wasm :: (C.Var -> Int) -> C.FunDef -> Inst
 fundef2Wasm f (C.FunDef tyfundef (C.Label tyfname fname) args exp) =
-  Func fname tyfundef args $ localVariables vars ++ body ++ inc ++ dec
+  Func fname tyfundef args $ localVariables vars ++ incArgs ++ body ++ incRes ++ decLocal ++ decArgs
   where
       (body,vars) = runState (exp2Insts exp) GenMState {localVariables = [Local P.TInt stackTopVar], label2index = f}
+      incArgs = concatMap (\a->gl a : [GCIncreaseRC, Drop]) args
+      decArgs = concatMap (\a->gl a : [GCDecreaseRC, Drop]) args
+      gl (C.Var t s) = GetLocal $ "$" ++ s
+      gl (C.Label t s) = GetLocal $ "$" ++ s
       -- If the function returns a value, we must increase RC.
-      inc = case tyfundef of
+      incRes = case tyfundef of
                 P.TUnit -> []
                 _ -> [GCIncreaseRC]
       -- Decrease all RCs of local variables except stackTopVar.
-      dec = concatMap (\(Local _ v) -> [GetLocal v, GCDecreaseRC, Drop]) $ localVariables vars \\ [Local P.TInt stackTopVar]
+      decLocal = concatMap (\(Local _ v) -> [GetLocal v, GCDecreaseRC, Drop]) $ localVariables vars \\ [Local P.TInt stackTopVar]
 
 data GenMState = GenMState { localVariables :: [Inst], label2index :: C.Var -> Int }
 type GenM a = (State GenMState a)
@@ -224,7 +229,7 @@ exp2Insts (C.ELet _ (C.Var t v) e1 e2) = do
   putLocal t v
   is1 <- exp2Insts e1
   is2 <- exp2Insts e2
-  return $ Comment "let" : is1 ++ [GCIncreaseRC, SetLocal ("$"++v)] ++ is2
+  return $ Comment ("let " ++ v) : is1 ++ [GCIncreaseRC, SetLocal ("$"++v)] ++ [Comment ("let " ++ v ++ " sub")] ++ is2 ++ [Comment ("let " ++ v ++ " end")]
 exp2Insts (C.ETuple _ es) = do
   let reserve = [GCMalloc [I32Const (4 * length es)] False]
   -- let reserve = [GCMalloc [I32Const (4 * length es)] True]
@@ -251,7 +256,7 @@ exp2Insts (C.EAppCls rtype e1 args) = do
   is1 <- exp2Insts e1
   -- We must get the function number from the closure therefore we need two
   -- I32Load.
-  return $ isargs ++ is1 ++ is1 ++ [I32Load, I32Load, CallIndirect (C.getTypeOfExp e1)]
+  return $ Comment "function call" : isargs ++ is1 ++ is1 ++ [I32Load, I32Load, CallIndirect (C.getTypeOfExp e1)] ++ [Comment "function call end"]
 exp2Insts (C.ESeq _ e1 e2) = do
   is1 <- exp2Insts e1
   is2 <- exp2Insts e2
