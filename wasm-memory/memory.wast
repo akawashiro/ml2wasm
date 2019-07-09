@@ -303,6 +303,23 @@
   (func $gc_all_free
         (call $gc_all_free_body (i32.const 0)))
 
+
+  (func $gc_measure_body (param $here i32) (param $nblock i32) (param $usedmem i32)
+        (if (call $is_end (get_local $here))
+          (then
+            (call $print_i32 (i32.const 9999999))
+            (call $print_i32 (get_local $nblock))
+            (call $print_i32 (get_local $usedmem)))
+          (else
+            (if (call $is_used (get_local $here))
+              (then
+                (set_local $nblock (i32.add (get_local $nblock) (i32.const 1)))
+                (set_local $usedmem (i32.add (get_local $usedmem) (call $get_size (get_local $here))))))
+            (call $gc_measure_body (call $get_next (get_local $here)) (get_local $nblock) (get_local $usedmem)))))
+
+  (func $gc_measure
+        (call $gc_measure_body (i32.const 0) (i32.const 0) (i32.const 0)))
+
   (; END DEFNITION OF MEMORY FUNCTIONS ;)
 
   (func (export "main") (result i32)

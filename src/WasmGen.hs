@@ -103,9 +103,9 @@ wasmToString (Wasm ty fds is) memoryFile = do
     let mainLocal = intercalate "\n" (map show (takeWhile isLocal is)) ++ "\n"
     let gcInit = "(call $gc_initalize)\n"
     let mainBody = intercalate "\n" (map show (dropWhile isLocal is))
-    let measureMalloc = "(call $malloc_measure)\n"
+    let measureGC = "(call $gc_measure)\n"
     let mainSuffix = "))"
-    return $ prefix ++ memoryGlobalVariables ++ memoryFunctions ++ table ++ fundefs ++ elem ++ mainPrefix ++ mainLocal ++ gcInit ++ mainBody ++ measureMalloc ++ mainSuffix
+    return $ prefix ++ memoryGlobalVariables ++ memoryFunctions ++ table ++ fundefs ++ elem ++ mainPrefix ++ mainLocal ++ gcInit ++ mainBody ++ measureGC ++ mainSuffix
     where
       isLocal :: Inst -> Bool
       isLocal (Local _ _) = True
