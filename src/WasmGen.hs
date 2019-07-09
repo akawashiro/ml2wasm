@@ -229,7 +229,15 @@ exp2Insts (C.ELet _ (C.Var t v) e1 e2) = do
   putLocal t v
   is1 <- exp2Insts e1
   is2 <- exp2Insts e2
-  return $ Comment ("let " ++ v) : is1 ++ [GCIncreaseRC, SetLocal ("$"++v)] ++ [Comment ("let " ++ v ++ " sub")] ++ is2 ++ [Comment ("let " ++ v ++ " end")]
+  return $ Comment ("let " ++ v) : is1 ++ inc ++ [SetLocal ("$"++v)] ++ [Comment ("let " ++ v ++ " sub")] ++ is2 ++ [Comment ("let " ++ v ++ " end")]
+  where
+      -- If the e1 is an application, we do not need to increase RC.
+      -- Because the RC was already increased inside the function.
+      -- This is an ad-hoc solution, we must consider more sophisticated
+      -- one.
+      inc = case e1 of
+                C.EAppCls _ _ _ -> []
+                _ -> [GCIncreaseRC]
 exp2Insts (C.ETuple _ es) = do
   let reserve = [GCMalloc [I32Const (4 * length es)] False]
   -- let reserve = [GCMalloc [I32Const (4 * length es)] True]
