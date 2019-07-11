@@ -1,5 +1,5 @@
 # ml2wasm
-A compiler from [MinCaml](http://esumii.github.io/min-caml/) to [WebAssembly](https://webassembly.org/).
+A compiler from [MinCaml](http://esumii.github.io/min-caml/) to [WebAssembly](https://webassembly.org/) including reference count gabage collection.
 ## Requirement
 To test this compiler, you must install [stack](https://docs.haskellstack.org/en/stable/README/) and [wabt](https://github.com/WebAssembly/wabt).
 You can use this compiler without `wabt`.
@@ -13,14 +13,24 @@ You can build and test this compiler as follows.
 % git clone https://github.com/akawashiro/ml2wasm.git
 % stack init
 % stack solver
-% ./test.sh
+% ./testAll.sh
 ```
-When the test succeed, you can see following output.
-This progam calculate Fibonacci numbers.
-The last line is appended to pass the type check process.
+The last two lines following `called host host.print(i32:9999999) =>` are infomation of gabage collection.
+They shows the number of living object and the size of consumed memory, respectively.
 ```sh
-...
-The result of execution =
+========== add.ml ==========
+called host host.print(f32:5.000000) =>
+called host host.print(i32:9999999) =>
+called host host.print(i32:3) =>
+called host host.print(i32:48) =>
+main() => i32:132
+========== closure.ml ==========
+called host host.print(i32:12) =>
+called host host.print(i32:9999999) =>
+called host host.print(i32:3) =>
+called host host.print(i32:52) =>
+main() => i32:108
+========== fib.ml ==========
 called host host.print(i32:1) =>
 called host host.print(i32:1) =>
 called host host.print(i32:1) =>
@@ -32,22 +42,63 @@ called host host.print(i32:13) =>
 called host host.print(i32:21) =>
 called host host.print(i32:34) =>
 called host host.print(i32:55) =>
-main() => i32:1
-```
-If you didn't install `wabt`, you can see only WebAssembly.
-```sh
-...
-(i32.const 0)
-(get_local $fun_print_1)
-(set_local $stack_top_var)
-(get_local $stack_top_var)
-(get_local $stack_top_var)
-(i32.load)
-(call_indirect (param i32) (param i32) (result i32))))
-```
-## Try other examples
-I prepare some examples in `ml-examples` directory.
-When you want to try them like following.
-```
-% stack exec ml2wasm -- -d ./ml-examples/arith.ml
+called host host.print(i32:9999999) =>
+called host host.print(i32:291) =>
+called host host.print(i32:4660) =>
+main() => i32:4880
+========== fun.ml ==========
+called host host.print(f32:20.000000) =>
+called host host.print(f32:50.000000) =>
+called host host.print(i32:9999999) =>
+called host host.print(i32:3) =>
+called host host.print(i32:48) =>
+main() => i32:104
+========== if.ml ==========
+called host host.print(f32:10.000000) =>
+called host host.print(i32:9999999) =>
+called host host.print(i32:2) =>
+called host host.print(i32:32) =>
+main() => i32:104
+========== adder.ml ==========
+called host host.print(i32:10) =>
+called host host.print(i32:9999999) =>
+called host host.print(i32:4) =>
+called host host.print(i32:68) =>
+main() => i32:104
+========== array.ml ==========
+called host host.print(i32:1) =>
+called host host.print(i32:9999999) =>
+called host host.print(i32:6) =>
+called host host.print(i32:132) =>
+main() => i32:160
+========== div.ml ==========
+called host host.print(f32:10.000000) =>
+called host host.print(i32:9999999) =>
+called host host.print(i32:1) =>
+called host host.print(i32:16) =>
+main() => i32:76
+========== float.ml ==========
+called host host.print(f32:10.000000) =>
+called host host.print(f32:10.000000) =>
+called host host.print(i32:9999999) =>
+called host host.print(i32:3) =>
+called host host.print(i32:48) =>
+main() => i32:132
+========== nestlet.ml ==========
+called host host.print(i32:9999999) =>
+called host host.print(i32:4) =>
+called host host.print(i32:64) =>
+main() => i32:160
+========== print.ml ==========
+called host host.print(f32:10.000000) =>
+called host host.print(i32:9999999) =>
+called host host.print(i32:1) =>
+called host host.print(i32:16) =>
+main() => i32:76
+========== tuple.ml ==========
+called host host.print(i32:40) =>
+called host host.print(i32:9999999) =>
+called host host.print(i32:5) =>
+called host host.print(i32:88) =>
+main() => i32:196
 ```
